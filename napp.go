@@ -5,10 +5,6 @@ import (
 	"os"
 )
 
-type name struct {
-	NotEnoughArguments string
-}
-
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
