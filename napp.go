@@ -165,7 +165,7 @@ func createHtmlFile(projectName string) {
     <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
   </head>
   <body>
-    <h1>Hello, Napp!</h1>
+    <h1>Hello from Napp!</h1>
   </body>
 </html>
 {{ end }}
@@ -201,6 +201,9 @@ body {
 
 body {
   font-family: courier;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 `
 
