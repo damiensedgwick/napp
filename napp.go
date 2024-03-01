@@ -192,6 +192,16 @@ func createCssFile(projectName string) {
   padding: 0;
   box-sizing: border-box;
 }
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: courier;
+}
 `
 
 	filePath := filepath.Join(projectName, "static", "styles.css")
