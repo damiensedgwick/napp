@@ -7,7 +7,6 @@ import (
 	"regexp"
 )
 
-// Define custom errors
 var (
 	ErrNoArguments      = errors.New("no arguments provided")
 	ErrTooManyArguments = errors.New("too many arguments provided")
@@ -23,6 +22,9 @@ func main() {
 	}
 
 	name := args[0]
+
+	// TODO: do the thing, create the project!
+
 	fmt.Println("Project Name: ", name)
 }
 
