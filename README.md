@@ -68,7 +68,7 @@ web development techniques.
 - Make sure your Go bin is added to your path so that installed packages can be used globally.
 
 ## Installation
-- go install github.com/damiensedgwick/napp
+`go install github.com/damiensedgwick/napp`
 
 ## Usage
 - TBC...
