@@ -88,6 +88,7 @@ func createProject(projectName string) (bool, error) {
 
 	createGoMainFile(projectName)
 	createHtmlFile(projectName)
+	createHtmxFile(projectName)
 	createCssFile(projectName)
 	createIgnoreFile(projectName)
 	createDotEnvFile(projectName)
@@ -97,8 +98,7 @@ func createProject(projectName string) (bool, error) {
 }
 
 func createGoMainFile(projectName string) {
-	mainGoContent := `
-package main
+	mainGoContent := `package main
 
 import (
 	"fmt"
@@ -185,8 +185,7 @@ func newPageData(message string) PageData {
 }
 
 func createHtmlFile(projectName string) {
-	indexHTMLContent := `
-{{ block "index" . }}
+	indexHTMLContent := `{{ block "index" . }}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -227,9 +226,25 @@ func createHtmlFile(projectName string) {
 	}
 }
 
+func createHtmxFile(projectName string) {
+	htmxContent := `console.log('Hello, World!');`
+
+	filePath := filepath.Join(projectName, "static", "htmx.min.js")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating styles.css file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(htmxContent)
+	if err != nil {
+		fmt.Println("error writing styles.css content to file: ", err)
+	}
+}
+
 func createCssFile(projectName string) {
-	cssContent := `
-* {
+	cssContent := `* {
 	margin: 0;
 	padding: 0;
 	box-sizing: border-box;
@@ -270,8 +285,7 @@ div {
 }
 
 func createIgnoreFile(projectName string) {
-	ignoreContent := `
-# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
+	ignoreContent := `# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,linux,windows,macos
 
 .env
@@ -393,12 +407,10 @@ auth-diaries.db
 }
 
 func createDotEnvFile(projectName string) {
-	envVarName := strings.ReplaceAll(projectName, "-", "_")
+	envVarName := strings.ReplaceAll(strings.ToUpper(projectName), "-", "_")
 	dbFilename := strings.ToLower(projectName) + ".db"
 
-	dotenvContent := fmt.Sprintf(`
-%s_DB_PATH="%s"
-`, envVarName, dbFilename)
+	dotenvContent := fmt.Sprintf(`%s_DB_PATH="%s"`, envVarName, dbFilename)
 
 	filePath := filepath.Join(projectName, ".env")
 
