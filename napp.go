@@ -93,6 +93,8 @@ func createProject(projectName string) (bool, error) {
 	createIgnoreFile(projectName)
 	createDotEnvFile(projectName)
 	createSqliteDbFile(projectName)
+	createMakefile(projectName)
+	createDockerfile(projectName)
 
 	return true, nil
 }
@@ -421,7 +423,7 @@ func createDotEnvFile(projectName string) {
 
 	_, err = f.WriteString(dotenvContent)
 	if err != nil {
-		fmt.Println("error writing .env content to file: ", err)
+		fmt.Println("error writing database content to file: ", err)
 	}
 }
 
@@ -431,6 +433,78 @@ func createSqliteDbFile(projectName string) {
 
 	_, err := os.Create(filePath)
 	if err != nil {
-		fmt.Println("error creating .env file: ", err)
+		fmt.Println("error creating database file: ", err)
+	}
+}
+
+func createMakefile(projectName string) {
+	makefileContent := fmt.Sprintf(`BINARY_NAME=%s
+
+all: clean format build run
+
+build:
+	@echo "Building..."
+	@go build -tags netgo -a -v -o bin/$(BINARY_NAME) cmd/main.go
+
+clean:
+	@echo "Cleaning..."
+	@go clean
+	@if [ -e bin/$(BINARY_NAME) ]; then rm bin/$(BINARY_NAME); fi
+
+format:
+	@echo "Formatting..."
+	@go fmt ./...
+
+run:
+	@echo "Running..."
+	@./bin/$(BINARY_NAME)
+
+test:
+	@echo "Testing..."
+	@go test ./...
+`, projectName)
+
+	filePath := filepath.Join(projectName, "Makefile")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating Makefile file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(makefileContent)
+	if err != nil {
+		fmt.Println("error writing Makefile content to file: ", err)
+	}
+}
+
+func createDockerfile(projectName string) {
+	dockerfileContent := fmt.Sprintf(`# Use the official Alpine image as the base image
+FROM alpine:latest
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy pre-built binary into the container
+COPY bin/%s /app/%s
+
+# Expose port 8080 to run the application
+EXPOSE 8080
+
+# Command to run the application
+CMD ["./%s"]
+`, projectName, projectName, projectName)
+
+	filePath := filepath.Join(projectName, "Dockerfile")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating Dockerfile file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(dockerfileContent)
+	if err != nil {
+		fmt.Println("error writing Dockerfile content to file: ", err)
 	}
 }
