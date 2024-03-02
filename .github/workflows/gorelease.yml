@@ -22,11 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3  # Check out your code
 
-      - name: Set up Node.js v20 
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
@@ -37,3 +32,10 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.goarch }}
         run: go build -tags netgo -a -v -o dist/${{ matrix.os }}-${{ matrix.goarch }}/napp .
+
+      - name: Create Release Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: dist/
+          
