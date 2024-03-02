@@ -3,9 +3,7 @@
 
 name: Go
 
-on:
-  release:
-    types: [created, released]
+on: [push, pull_request]
 
 jobs:
   build:
