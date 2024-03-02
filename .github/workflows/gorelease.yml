@@ -34,7 +34,7 @@ jobs:
         run: go build -tags netgo -a -v -o dist/${{ matrix.os }}-${{ matrix.goarch }}/napp .
 
       - name: Create Release Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: dist/
