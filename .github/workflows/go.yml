@@ -9,23 +9,38 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Base OS for all builds
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        goarch: [amd64, arm64]  # Architectures to support (adjust as needed)
+        include:
+          # Customize specific builds if needed
+          - os: windows-latest
+            goarch: 386  
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v3  # Check out your code
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.20'
+      - name: Set up Node.js v20 
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
 
-    - name: Clean
-      run: go clean -v ./...
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.22' # Or your desired Go version
 
-    - name: Format
-      run: go fmt -v ./...
+      - name: Build Binaries
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -tags netgo -a -v -o dist/${{ matrix.os }}-${{ matrix.goarch }}/myapp .  # Replace 'myapp' with your app name
 
-    - name: Build
-      run: go build -v ./...
-
-    - name: Test
-      run: go test -v ./...
+      - name: Create Release Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: dist/
