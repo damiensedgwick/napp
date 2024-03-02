@@ -18,6 +18,8 @@ researching and developing. The constraints are quite simple, it must have as fe
 to function correctly, it can be containerised with as small image as possible and it must use as
 little JavaScript as possible.
 
+If you want to take a look at how a Nano App is structured by napp, please vist [Napp Template](https://github.com/damiensedgwick/napp-template)
+
 Below are some potential use cases for a Nano App.
 
 ### Rapid Prototyping:
@@ -70,6 +72,7 @@ web development techniques.
 `go install github.com/damiensedgwick/napp@latest`
 
 ## Usage
+
 `napp <project-name>`
 
 `cd <project-name>`
@@ -78,7 +81,30 @@ web development techniques.
 
 `go mod tidy`
 
+## Running the application
+
+### Go
+
+Go has everything you need to build and run the application locally and it is
+usually the default choice when wanting to develop and iterate quickly.
+
 `go run cmd/main.go`
+
+### Make
+
+I personally like using Make, I think it is simple and does the job well. The following
+command will clean, format, build and run the application.
+
+`make all`
+
+### Docker
+
+Docker has been setup is so that the binary is prebuilt using Go and then it is simply
+copied into the Docker image, resulting in a smaller footprint the final Docker image.
+
+`docker build -t app-name .`
+
+`docker run -d -p 8080:8080 app-name`
 
 ## Contributing
 I'd love to have your help making [project name] even better! Here's how to get involved:
