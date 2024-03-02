@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -89,6 +90,8 @@ func createProject(projectName string) (bool, error) {
 	createHtmlFile(projectName)
 	createCssFile(projectName)
 	createIgnoreFile(projectName)
+	createDotEnvFile(projectName)
+	createSqliteDbFile(projectName)
 
 	return true, nil
 }
@@ -98,17 +101,22 @@ func createGoMainFile(projectName string) {
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"io"
+	"os"
 
+	"github.com/jmoiron/sqlx"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	_ "github.com/mattn/go-sqlite3"
 )
-
+	
 type Template struct {
 	tmpl *template.Template
 }
-
+	
 func newTemplate() *Template {
 	return &Template{
 		tmpl: template.Must(template.ParseGlob("templates/*.html")),
@@ -119,7 +127,22 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 	return t.tmpl.ExecuteTemplate(w, name, data)
 }
 
+var db *sqlx.DB
+
 func main() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("error loading godotenv")
+	}
+
+	db = sqlx.MustConnect("sqlite3", os.Getenv("AUTH_DIARIES_DB_PATH"))
+
+	var message string
+	err = db.Ping()
+	if err == nil {
+		message = "Successfully connected to DB"
+	}
+
 	e := echo.New()
 
 	e.Static("/static", "static")
@@ -130,10 +153,20 @@ func main() {
 	e.Renderer = newTemplate()
 
 	e.GET("/", func(c echo.Context) error {
-		return c.Render(200, "index", nil)
+		return c.Render(200, "index", newPageData(message))
 	})
 
 	e.Logger.Fatal(e.Start(":8080"))
+}
+
+type PageData struct {
+	Message string
+}
+
+func newPageData(message string) PageData {
+	return PageData{
+		Message: message,
+	}
 }
 `
 
@@ -156,17 +189,26 @@ func createHtmlFile(projectName string) {
 {{ block "index" . }}
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Nano App</title>
-    <link href="static/styles.css" rel="stylesheet">
-    <!-- Consider swapping out this cdn link for a minified version at: https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js -->
-    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
-  </head>
-  <body>
-    <h1>Hello from Napp!</h1>
-  </body>
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Napp | Nano App | Go, HTMX & SQLite</title>
+	<meta name="description"
+	content="A command line tool that helps you build and test web app ideas blazingly-fast with a streamlined Go, HTMX, and SQLite stack. Authored by Damien Sedgwick.">
+	<link href="static/styles.css" rel="stylesheet">
+	<script src="static/htmx.min.js"></script>
+</head>
+
+<body>
+	<div>
+	<h1>Hello from Napp!</h1>
+	{{ if .Message }}
+	<p>{{ .Message }}</p>
+	{{ end }}
+	</div>
+</body>
+
 </html>
 {{ end }}
 `
@@ -188,22 +230,28 @@ func createHtmlFile(projectName string) {
 func createCssFile(projectName string) {
 	cssContent := `
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
 }
-
+	
 html,
 body {
-  height: 100%;
-  width: 100%;
+	height: 100%;
+	width: 100%;
 }
-
+	
 body {
-  font-family: courier;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+	font-family: courier;
+}
+	
+div {
+	height: 100%;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
 }
 `
 
@@ -341,5 +389,37 @@ auth-diaries.db
 	_, err = f.WriteString(ignoreContent)
 	if err != nil {
 		fmt.Println("error writing .gitignore content to file: ", err)
+	}
+}
+
+func createDotEnvFile(projectName string) {
+	envVarName := strings.ReplaceAll(projectName, "-", "_")
+	dbFilename := strings.ToLower(projectName) + ".db"
+
+	dotenvContent := fmt.Sprintf(`
+%s_DB_PATH="%s"
+`, envVarName, dbFilename)
+
+	filePath := filepath.Join(projectName, ".env")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating .env file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(dotenvContent)
+	if err != nil {
+		fmt.Println("error writing .env content to file: ", err)
+	}
+}
+
+func createSqliteDbFile(projectName string) {
+	dbfileName := strings.ToLower(projectName) + ".db"
+	filePath := filepath.Join(projectName, dbfileName)
+
+	_, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating .env file: ", err)
 	}
 }
