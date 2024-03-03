@@ -1,8 +1,5 @@
 # Napp
 
-Napp is a command line tool that helps you build and test web app ideas *blazingly-fast* with a 
-streamlined Go, HTMX, and SQLite stack.
-
 ## Table of Contents
 - [About](#about)
 - [Prerequisites](#prerequisites)
