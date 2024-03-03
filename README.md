@@ -1,5 +1,10 @@
 # Napp
 
+Napp is an abbreviation of 'Nano App' which is a term I am using to describe a web application
+that has a very small footprint. Specifically, Napp bootstraps a new application for you by
+creating a project, necessary files and connects them all up so you can dive straight into
+building your application.
+
 ## Table of Contents
 - [About](#about)
 - [Prerequisites](#prerequisites)
@@ -10,10 +15,9 @@
 
 ## About
 **What is a Nano App?**
-A Nano App is the name I dedicded to give a particular type of application that I am interested in
-researching and developing. The constraints are quite simple, it must have as few files as possible
-to function correctly, it can be containerised with as small image as possible and it must use as
-little JavaScript as possible.
+The rules are simple, a nano app must have as few files as possible, as few directories as possible,
+little to no JavaScript (minus HTMX), has a small Docker image (size does matter) and must be easy
+to develop and deploy.
 
 If you want to take a look at how a Nano App is structured by napp, please vist [Napp Template](https://github.com/damiensedgwick/napp-template)
 
