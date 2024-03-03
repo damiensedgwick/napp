@@ -69,7 +69,13 @@ web development techniques.
 - Make sure your Go bin is added to your path so that installed packages can be used globally.
 
 ## Installation
+
+### Using Go
 `go install github.com/damiensedgwick/napp@latest`
+
+### Using a release binary
+You can download the compiled binary for your machine from [Releases](https://github.com/damiensedgwick/napp/releases).
+Once you have done this, make sure the executable has the correct permissions and make sure it is in your path.
 
 ## Usage
 
