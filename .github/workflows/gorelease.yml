@@ -1,24 +1,27 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
-name: Build Binaries
+# .github/workflows/release.yaml
 
 on:
   release:
-    tags:
-      - 'v*'
-    types: [created, released, published]
+    types: [created]
+
+permissions:
+    contents: write
+    packages: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest  # Base OS for all builds
-
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         # build and publish in parallel: linux/386, linux/amd64, linux/arm64, windows/386, windows/amd64, darwin/amd64, darwin/arm64
         goos: [linux, windows, darwin]
         goarch: ["386", amd64, arm64]
-
+        exclude:
+          - goarch: "386"
+            goos: darwin
+          - goarch: arm64
+            goos: windows
     steps:
     - uses: actions/checkout@v4
     - uses: wangyoucao577/go-release-action@v1
