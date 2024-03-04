@@ -15,27 +15,31 @@ var (
 	ErrInvalidName      = errors.New("invalid project name")
 )
 
-const version = "v0.1.0"
+const version = "v0.1.2"
 
 func main() {
 	args := os.Args[1:]
 
 	if err := validateArgs(args); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		e := fmt.Sprintf("Napp: Oops, %s - Run 'napp --help' for available commands.", err)
+		fmt.Println(e)
+		os.Exit(0)
 	}
 
 	name := args[0]
 
 	ok, err := createProject(name)
 	if err != nil {
-		fmt.Println("Project creation failed:", err)
+		fmt.Println("Napp: Oops, project creation failed:", err)
 		os.Exit(1)
 	}
 
 	if ok {
-		fmt.Println("Project created successfully!")
-		fmt.Println("Please 'cd' into your new project and run 'go mod init <insert-your-init-path> && go mod tidy'")
+		msg := fmt.Sprintf("Napp: %s created successfully!", name)
+		fmt.Println(msg)
+
+		next := fmt.Sprintf("Change directory to '%s' and run go mod init <insert-your-init-path> && go mod tidy", name)
+		fmt.Println(next)
 	}
 }
 
@@ -70,6 +74,8 @@ func printHelpMenu() {
 	fmt.Println("***************************************************************")
 	fmt.Println("*                          Napp Menu                          *")
 	fmt.Println("* ----------------------------------------------------------- *")
+	fmt.Println("*                                                             *")
+	fmt.Println("* napp project-name: Create a new Napp project.               *")
 	fmt.Println("*                                                             *")
 	fmt.Println("* napp --help: Get a list of currently available commands.    *")
 	fmt.Println("*                                                             *")
