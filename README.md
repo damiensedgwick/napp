@@ -19,7 +19,7 @@ The rules are simple, a nano app must have as few files as possible, as few dire
 little to no JavaScript (minus HTMX), has a small Docker image (size does matter) and must be easy
 to develop and deploy.
 
-If you want to take a look at how a Nano App is structured by napp, please vist [Napp Template](https://github.com/damiensedgwick/napp-template)
+If you want to take a look at how a Nano App is structured by napp, please vist [Napp Generated](https://github.com/damiensedgwick/napp-template)
 
 Below are some potential use cases for a Nano App.
 
@@ -80,6 +80,8 @@ Once you have done this, make sure the executable has the correct permissions an
 
 ## Usage
 
+### Generate a new Napp
+
 `napp <project-name>`
 
 `cd <project-name>`
@@ -87,6 +89,16 @@ Once you have done this, make sure the executable has the correct permissions an
 `go mod init <your-chosen-path>`
 
 `go mod tidy`
+
+### Other commands
+
+Display the Napp help menu to get a list of currently available commands.
+
+`napp --help`
+
+Get the current version with the following command:
+
+`napp --version`
 
 ## Running the application
 
