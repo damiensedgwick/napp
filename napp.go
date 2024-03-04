@@ -15,6 +15,8 @@ var (
 	ErrInvalidName      = errors.New("invalid project name")
 )
 
+const version = "v0.1.0"
+
 func main() {
 	args := os.Args[1:]
 
@@ -49,6 +51,11 @@ func validateArgs(args []string) error {
 	name := args[0]
 	if name == "--help" {
 		fmt.Println("You can create a new Nano App with the command 'napp <project-name>'")
+		os.Exit(0)
+	}
+
+	if name == "--version" {
+		fmt.Println("Napp version: ", version)
 		os.Exit(0)
 	}
 
@@ -286,10 +293,14 @@ div {
 }
 
 func createIgnoreFile(projectName string) {
-	ignoreContent := `# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
+	dbFilename := strings.ToLower(projectName) + ".db"
+
+	ignoreContent := fmt.Sprintf(`# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,linux,windows,macos
 
 .env
+bin
+%s
 
 ### Go ###
 # If you prefer the allow list template instead of the deny list, see community template:
@@ -389,9 +400,7 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
-bin
-auth-diaries.db
-`
+`, dbFilename)
 
 	filePath := filepath.Join(projectName, ".gitignore")
 
