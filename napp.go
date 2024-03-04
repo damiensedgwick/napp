@@ -50,7 +50,7 @@ func validateArgs(args []string) error {
 
 	name := args[0]
 	if name == "--help" {
-		fmt.Println("You can create a new Nano App with the command 'napp <project-name>'")
+		printHelpMenu()
 		os.Exit(0)
 	}
 
@@ -64,6 +64,18 @@ func validateArgs(args []string) error {
 	}
 
 	return nil
+}
+
+func printHelpMenu() {
+	fmt.Println("***************************************************************")
+	fmt.Println("*                          Napp Menu                          *")
+	fmt.Println("* ----------------------------------------------------------- *")
+	fmt.Println("*                                                             *")
+	fmt.Println("* napp --help: Get a list of currently available commands.    *")
+	fmt.Println("*                                                             *")
+	fmt.Println("* napp --version: Display the current Napp version.           *")
+	fmt.Println("*                                                             *")
+	fmt.Println("***************************************************************")
 }
 
 func isInvalidProjectName(name string) bool {
