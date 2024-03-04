@@ -15,7 +15,7 @@ var (
 	ErrInvalidName      = errors.New("invalid project name")
 )
 
-const version = "v0.1.2"
+const version = "v0.2.0"
 
 func main() {
 	args := os.Args[1:]
