@@ -15,7 +15,7 @@ var (
 	ErrInvalidName      = errors.New("invalid project name")
 )
 
-const version = "v0.2.1"
+const version = "v0.2.2"
 
 func main() {
 	args := os.Args[1:]
@@ -125,7 +125,9 @@ func createProject(projectName string) (bool, error) {
 }
 
 func createGoMainFile(projectName string) {
-	mainGoContent := `package main
+	envVarName := strings.ReplaceAll(strings.ToUpper(projectName), "-", "_") + "_DB_PATH"
+
+	mainGoContent := fmt.Sprintf(`package main
 
 import (
 	"fmt"
@@ -162,7 +164,7 @@ func main() {
 		fmt.Println("error loading godotenv")
 	}
 
-	db = sqlx.MustConnect("sqlite3", os.Getenv("AUTH_DIARIES_DB_PATH"))
+	db = sqlx.MustConnect("sqlite3", os.Getenv("%s"))
 
 	var message string
 	err = db.Ping()
@@ -195,7 +197,7 @@ func newPageData(message string) PageData {
 		Message: message,
 	}
 }
-`
+`, envVarName)
 
 	filePath := filepath.Join(projectName, "cmd", "main.go")
 
