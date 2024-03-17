@@ -15,7 +15,7 @@ var (
 	ErrInvalidName      = errors.New("invalid project name")
 )
 
-const version = "v0.3.1"
+const version = "v0.3.2"
 
 func main() {
 	args := os.Args[1:]
@@ -783,9 +783,6 @@ COPY static /app/static
 
 # Copy all template files into the container
 COPY template /app/template
-
-# Copy .env file into the container
-COPY .env /app/.env
 
 # Expose port 8080 to run the application
 EXPOSE 8080
