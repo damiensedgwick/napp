@@ -15,14 +15,14 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v0.4.0",
+		Version:   "v0.4.1",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
 			{
 				Name:      "init",
 				ShortName: "i",
-				Usage:     "Initialise a new napp project and start building",
+				Usage:     "Initialise a new napp project ready for development",
 				UsageText: "napp init <project-name>",
 				Action: func(cCtx *cli.Context) error {
 					if len(cCtx.Args()) != 1 {
