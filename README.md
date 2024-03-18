@@ -82,7 +82,7 @@ Once you have done this, make sure the executable has the correct permissions an
 
 ### Generate a new Napp
 
-`napp <project-name>`
+`napp init <project-name>`
 
 `cd <project-name>`
 
