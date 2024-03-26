@@ -15,7 +15,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v0.5.0",
+		Version:   "v0.5.1",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -36,7 +36,14 @@ func main() {
 						return cli.NewExitError("Oops! Project name must be in the following format: <project-name>", 1)
 					}
 
-					createProject(projectname)
+					ok, _ := createProject(projectname)
+					if ok {
+						fmt.Println("Successfully created " + projectname + ", next steps:")
+						fmt.Println("cd " + projectname)
+						fmt.Println("go mod init")
+						fmt.Println("go mod tidy")
+						fmt.Println("make all")
+					}
 
 					return nil
 				},
