@@ -15,7 +15,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v0.5.1",
+		Version:   "v0.5.2",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -331,7 +331,7 @@ func createInitialUser(db *gorm.DB) {
 	}
 }
 
-`, sessEnv, dbEnv)
+`, dbEnv, sessEnv)
 
 	filePath := filepath.Join(projectName, "cmd", "main.go")
 
