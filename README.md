@@ -19,7 +19,7 @@ The rules are simple, a nano app must have as few files as possible, as few dire
 little to no JavaScript (minus HTMX), has a small Docker image (size does matter) and must be easy
 to develop and deploy.
 
-If you want to take a look at how a Nano App is structured by napp, please vist [Napp Generated](https://github.com/damiensedgwick/napp-template)
+If you want to take a look at how a Nano App is structured by napp, please vist [Napp Generated](https://github.com/damiensedgwick/napp-generated)
 
 Below are some potential use cases for a Nano App.
 
