@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/urfave/cli"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func main() {
@@ -26,14 +28,20 @@ func main() {
 				UsageText: "napp init <project-name>",
 				Action: func(cCtx *cli.Context) error {
 					if len(cCtx.Args()) != 1 {
-						msg := fmt.Sprintf("Oops! Received %v arguments, wanted 1", len(cCtx.Args()))
+						msg := fmt.Sprintf(
+							"Oops! Received %v arguments, wanted 1",
+							len(cCtx.Args()),
+						)
 						return cli.NewExitError(msg, 1)
 					}
 
 					projectname := cCtx.Args().Get(0)
 
 					if isInvalidProjectName(projectname) {
-						return cli.NewExitError("Oops! Project name must be in the following format: <project-name>", 1)
+						return cli.NewExitError(
+							"Oops! Project name must be in the following format: <project-name>",
+							1,
+						)
 					}
 
 					ok, _ := createProject(projectname)
@@ -88,6 +96,7 @@ func createProject(projectName string) (bool, error) {
 	createGoMainFile(projectName)
 	createHtmlFile(projectName)
 	createHtmxFile(projectName)
+	createTwColorsFile(projectName)
 	createCssFile(projectName)
 	createIgnoreFile(projectName)
 	createDotEnvFile(projectName)
@@ -109,141 +118,17 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func main() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		fmt.Println("error loading godotenv")
-	}
-
-	r := http.NewServeMux()
-	fs := http.FileServer(http.Dir("./static"))
-	r.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	db, err := gorm.Open(sqlite.Open(os.Getenv("%s")), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
-	}
-
-	db.AutoMigrate(&User{})
-	createInitialUser(db)
-
-	store := sessions.NewCookieStore([]byte(os.Getenv("%s")))
-
-	stack := CreateMiddlewareStack(
-		Logging,
-	)
-
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t := newTemplate()
-
-    session, _ := store.Get(r, "session")
-		if session.Values["user"] != nil {
-			var user User
-
-			err := json.Unmarshal(session.Values["user"].([]byte), &user)
-			if err != nil {
-				fmt.Println("error unmarshalling user value")
-			}
-
-			t.Render(w, "index", newPageData(user))
-			return
-		}
-
-		var data interface{}
-
-		t.Render(w, "index", data)
-		return
-	})
-
-	r.HandleFunc("GET /auth/sign-in", func(w http.ResponseWriter, r *http.Request) {
-		t := newTemplate()
-
-		var data interface{}
-
-		t.Render(w, "auth-form", data)
-		return
-	})
-
-	r.HandleFunc("POST /auth/sign-in", func(w http.ResponseWriter, r *http.Request) {
-		t := newTemplate()
-
-		err := r.ParseForm()
-		if err != nil {
-			http.Error(w, "Error parsing form data", http.StatusBadRequest)
-		}
-
-		email := r.Form.Get("email")
-		password := r.Form.Get("password")
-
-		var user User
-		db.First(&user, "email = ?", email)
-
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-			http.Error(w, "Unauthorised", http.StatusUnauthorized)
-			return
-		}
-
-		session, _ := store.Get(r, "session")
-		session.Options = &sessions.Options{
-			Path:     "/",
-			MaxAge:   86400 * 7,
-			HttpOnly: true,
-		}
-
-		userBytes, err := json.Marshal(user)
-		if err != nil {
-			fmt.Println("error marshalling user value")
-		}
-
-		session.Values["user"] = userBytes
-
-		err = session.Save(r, w)
-		if err != nil {
-			fmt.Println("error saving session: ", err)
-		}
-
-		t.Render(w, "index", newPageData(user))
-		return
-	})
-
-	r.HandleFunc("POST /auth/sign-out", func(w http.ResponseWriter, r *http.Request) {
-		t := newTemplate()
-
-		sess, _ := store.Get(r, "session")
-		sess.Options.MaxAge = -1
-		err := sess.Save(r, w)
-		if err != nil {
-			fmt.Println("error saving session")
-		}
-
-		var data interface{}
-
-		t.Render(w, "index", data)
-		return
-	})
-
-	s := http.Server{
-		Addr:    ":8080",
-		Handler: stack(r),
-	}
-
-	fmt.Println("Running server on localhost:8080")
-	if err := s.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
-}
 
 type Template struct {
 	tmpl *template.Template
@@ -251,60 +136,122 @@ type Template struct {
 
 func newTemplate() *Template {
 	return &Template{
-		tmpl: template.Must(
-			template.ParseGlob("template/*.html")),
+		tmpl: template.Must(template.ParseGlob("template/*.html")),
 	}
 }
 
-func (t *Template) Render(w io.Writer, name string, data interface{}) error {
+func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	return t.tmpl.ExecuteTemplate(w, name, data)
 }
 
-type Middleware func(http.Handler) http.Handler
-
-func CreateMiddlewareStack(xs ...Middleware) Middleware {
-	return func(next http.Handler) http.Handler {
-		for i := len(xs) - 1; i >= 0; i-- {
-			x := xs[i]
-			next = x(next)
-		}
-		return next
+func main() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("error loading godotenv")
 	}
-}
 
-type wrappedWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
+	e := echo.New()
 
-func (w *wrappedWriter) WriteHeader(statusCode int) {
-	w.ResponseWriter.WriteHeader(statusCode)
-	w.statusCode = statusCode
-}
+	e.Static("/static", "static")
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.Secure())
 
-func Logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+	store := sessions.NewCookieStore([]byte(os.Getenv("%s")))
+	e.Use(session.Middleware(store))
 
-		wrapped := &wrappedWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK,
+	e.Renderer = newTemplate()
+
+	db, err := gorm.Open(sqlite.Open(os.Getenv("%s")), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	db.AutoMigrate(&Lead{}, &User{})
+
+	e.GET("/", func(c echo.Context) error {
+		sess, _ := session.Get("session", c)
+
+		if sess.Values["user"] != nil {
+			var user User
+
+			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
+			if err != nil {
+				fmt.Println("error unmarshalling user value")
+				return err
+			}
+
+			return c.Render(200, "index", newPageData(user, newLeadFormData()))
 		}
 
-		next.ServeHTTP(wrapped, r)
-
-		log.Println(r.Method, r.URL.Path, wrapped.statusCode, time.Since(start))
+		return c.Render(200, "index", newPageData(newUser(), newLeadFormData()))
 	})
+
+	e.POST("/join-waitlist", func(c echo.Context) error {
+		email := c.FormValue("email")
+
+		if leadExists(email, db) {
+			leadFormData := LeadFormData{
+				Errors: map[string]string{
+					"email": "Email is already subscribed",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			}
+
+			return c.Render(422, "waitlist", leadFormData)
+		}
+
+		db.Create(&Lead{
+			Email: email,
+		})
+
+		return c.Render(200, "waitlist", newLeadFormData())
+	})
+
+	e.Logger.Fatal(e.Start(":8080"))
 }
 
 type PageData struct {
-	User User
+	User     User
+	LeadForm LeadFormData
 }
 
-func newPageData(user User) PageData {
+func newPageData(user User, leadForm LeadFormData) PageData {
 	return PageData{
-		User: user,
+		User:     user,
+		LeadForm: leadForm,
 	}
+}
+
+type Lead struct {
+	gorm.Model
+	Email     string
+	CreatedAt time.Time
+	UpdatedAt *time.Time
+}
+
+type LeadFormData struct {
+	Errors map[string]string
+	Values map[string]string
+}
+
+func newLeadFormData() LeadFormData {
+	return LeadFormData{
+		Errors: map[string]string{},
+		Values: map[string]string{},
+	}
+}
+
+func leadExists(email string, db *gorm.DB) bool {
+	var lead Lead
+	err := db.First(&lead, "email = ?", email).Error
+	if err == gorm.ErrRecordNotFound {
+		return false
+	}
+
+	return true
 }
 
 type User struct {
@@ -316,22 +263,11 @@ type User struct {
 	UpdatedAt *time.Time
 }
 
-func createInitialUser(db *gorm.DB) {
-	var user User
-	err := db.First(&user, "email = ?", "johnsnow@winterfell.com").Error
-	if err == gorm.ErrRecordNotFound {
-		db.Create(&User{
-			Model:     gorm.Model{},
-			Name:      "John Snow",
-			Email:     "johnsnow@winterfell.com",
-			Password:  "$2a$10$1oPDSctekA8P2IHDHoKNb.JjWJ4XFwzZAvYSHp0s4byhFeMp9.da.",
-			CreatedAt: time.Time{},
-			UpdatedAt: &time.Time{},
-		})
-	}
+func newUser() User {
+	return User{}
 }
 
-`, dbEnv, sessEnv)
+`, sessEnv, dbEnv)
 
 	filePath := filepath.Join(projectName, "cmd", "main.go")
 
@@ -348,107 +284,79 @@ func createInitialUser(db *gorm.DB) {
 }
 
 func createHtmlFile(projectName string) {
-	indexHTMLContent := `{{ block "index" . }}
+	pn := strings.ReplaceAll(projectName, "-", " ")
+
+	caser := cases.Title(language.English)
+	title := caser.String(pn)
+
+	indexHTMLContent := fmt.Sprintf(`{{ block "index" . }}
 <!DOCTYPE html>
 
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Napp | Nano App | Go, HTMX & SQLite</title>
-	<meta name="description"
-		content="A command line tool that helps you build and test web app ideas blazingly-fast with a streamlined Go, HTMX, and SQLite stack. Authored by Damien Sedgwick.">
-	<link href="static/styles.css" rel="stylesheet">
-	<script src="static/htmx.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Napp | Nano App | Go, HTMX & SQLite</title>
+  <meta name="description"
+    content="A command line tool that helps you build and test web app ideas blazingly-fast with a streamlined Go, HTMX, and SQLite stack. Authored by Damien Sedgwick.">
+  <link href="static/twcolors.min.css" rel="stylesheet">
+  <link href="static/styles.css" rel="stylesheet">
+  <script src="static/htmx.min.js"></script>
 </head>
 
 <body>
-	<header>
-		<nav>
-			<a href="https://github.com/damiensedgwick/napp" target="_blank">Napp</a>
-			<ul>
-				{{ if not .User }}
-				{{ template "sign-in" . }}
-				{{ end }}
 
-				{{ if .User }}
-				{{ template "sign-out" . }}
-				{{ end }}
-			</ul>
-		</nav>
-	</header>
+  <main>
+    <div>
+      <h1>%s</h1>
+      <p>Join our waiting list and you'll be the first to know when we launch, ensuring you don't miss out on any exciting updates or early access opportunities.</p>
+      {{ template "waitlist" .LeadForm }}
+    </div>
+  </main>
 
-	<main>
-		<section id="content">
-			{{ if not .User }}
-			<h1>Welcome to Napp!</h1>
-			{{ end }}
-
-			{{ if .User }}
-			<h1>Welcome {{ .User.Name }}</h1>
-			{{ end }}
-
-			<p>
-				Thank you for downloading and installing Napp. For any issues or
-				contributions, please feel free to raise them <a href="https://github.com/damiensedgwick/napp">here</a>
-			</p>
-		</section>
-	</main>
-
-	<script type="text/javascript">
-		document.addEventListener("DOMContentLoaded", (event) => {
-			document.body.addEventListener('htmx:beforeSwap', function (evt) {
-				if (evt.detail.xhr.status === 422) {
-					// allow 422 responses to swap as we are using this as a signal that
-					// a form was submitted with bad data and want to rerender with the
-					// errors
-					//
-					// set isError to false to avoid error logging in console
-					evt.detail.shouldSwap = true;
-					evt.detail.isError = false;
-				}
-			});
-		});
-	</script>
+  <script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", (event) => {
+    document.body.addEventListener('htmx:beforeSwap', function (evt) {
+      if (evt.detail.xhr.status === 422) {
+        console.log("setting status to paint");
+        // allow 422 responses to swap as we are using this as a signal that
+        // a form was submitted with bad data and want to rerender with the
+        // errors
+        //
+        // set isError to false to avoid error logging in console
+        evt.detail.shouldSwap = true;
+        evt.detail.isError = false;
+      }
+    });
+  });
+  </script>
 </body>
-
 </html>
 {{ end }}
 
-{{ block "sign-in" . }}
-<li>
-	<button type="button" hx-get="/auth/sign-in" hx-target="#content">Sign In</button>
-</li>
-{{ end }}
+{{ block "waitlist" . }}      
+<form id="waitlist-form" hx-post="/join-waitlist" hx-swap="outerHTML">
+  <div>
+    <label for="email">
+      <input 
+        type="text"
+        name="email"
+        placeholder="Please enter your email"
+        {{ if .Values.email}}
+        value="{{ .Values.email }}"
+        {{end}} 
+        required
+      >
+    </label>
 
-{{ block "sign-out" . }}
-<li>
-	<button type="button" hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
-</li>
-{{ end }}
-
-{{ block "auth-form" . }}
-<form id="auth-form" hx-post="/auth/sign-in" hx-target="body">
-	<p>Sign in to Napp</p>
-	<small>
-		An example user has been created in the database for you, you can login
-		using: <b>johnsnow@winterfell.com</b> and <b>ghost</b>
-	</small>
-	<div>
-		Email:
-		<label for="email">
-			<input type="text" name="email" value="" />
-		</label>
-	</div>
-	<div>
-		Password:
-		<label for="password">
-			<input type="password" name="password" value="" />
-		</label>
-	</div>
-	<button type="submit">Sign In</button>
+    <button type="submit">Join Waitlist</button>
+  </div> 
+  {{ if .Errors.email }}
+  <p>{{ .Errors.email }}</p>
+  {{ end }}
 </form>
 {{ end }}
-`
+
+  `, title)
 
 	filePath := filepath.Join(projectName, "template", "index.html")
 
@@ -481,116 +389,149 @@ func createHtmxFile(projectName string) {
 	}
 }
 
+func createTwColorsFile(projectName string) {
+	cssContent := `:root{--tw-slate-50:#f8fafc;--tw-slate-100:#f1f5f9;--tw-slate-200:#e2e8f0;--tw-slate-300:#cbd5e1;--tw-slate-400:#94a3b8;--tw-slate-500:#64748b;--tw-slate-600:#475569;--tw-slate-700:#334155;--tw-slate-800:#1e293b;--tw-slate-900:#0f172a;--tw-gray-50:#f9fafb;--tw-gray-100:#f3f4f6;--tw-gray-200:#e5e7eb;--tw-gray-300:#d1d5db;--tw-gray-400:#9ca3af;--tw-gray-500:#6b7280;--tw-gray-600:#4b5563;--tw-gray-700:#374151;--tw-gray-800:#1f2937;--tw-gray-900:#111827;--tw-zinc-50:#fafafa;--tw-zinc-100:#f4f4f5;--tw-zinc-200:#e4e4e7;--tw-zinc-300:#d4d4d8;--tw-zinc-400:#a1a1aa;--tw-zinc-500:#71717a;--tw-zinc-600:#52525b;--tw-zinc-700:#3f3f46;--tw-zinc-800:#27272a;--tw-zinc-900:#18181b;--tw-neutral-50:#fafafa;--tw-neutral-100:#f5f5f5;--tw-neutral-200:#e5e5e5;--tw-neutral-300:#d4d4d4;--tw-neutral-400:#a3a3a3;--tw-neutral-500:#737373;--tw-neutral-600:#525252;--tw-neutral-700:#404040;--tw-neutral-800:#262626;--tw-neutral-900:#171717;--tw-stone-50:#fafaf9;--tw-stone-100:#f5f5f4;--tw-stone-200:#e7e5e4;--tw-stone-300:#d6d3d1;--tw-stone-400:#a8a29e;--tw-stone-500:#78716c;--tw-stone-600:#57534e;--tw-stone-700:#44403c;--tw-stone-800:#292524;--tw-stone-900:#1c1917;--tw-red-50:#fef2f2;--tw-red-100:#fee2e2;--tw-red-200:#fecaca;--tw-red-300:#fca5a5;--tw-red-400:#f87171;--tw-red-500:#ef4444;--tw-red-600:#dc2626;--tw-red-700:#b91c1c;--tw-red-800:#991b1b;--tw-red-900:#7f1d1d;--tw-orange-50:#fff7ed;--tw-orange-100:#ffedd5;--tw-orange-200:#fed7aa;--tw-orange-300:#fdba74;--tw-orange-400:#fb923c;--tw-orange-500:#f97316;--tw-orange-600:#ea580c;--tw-orange-700:#c2410c;--tw-orange-800:#9a3412;--tw-orange-900:#7c2d12;--tw-amber-50:#fffbeb;--tw-amber-100:#fef3c7;--tw-amber-200:#fde68a;--tw-amber-300:#fcd34d;--tw-amber-400:#fbbf24;--tw-amber-500:#f59e0b;--tw-amber-600:#d97706;--tw-amber-700:#b45309;--tw-amber-800:#92400e;--tw-amber-900:#78350f;--tw-yellow-50:#fefce8;--tw-yellow-100:#fef9c3;--tw-yellow-200:#fef08a;--tw-yellow-300:#fde047;--tw-yellow-400:#facc15;--tw-yellow-500:#eab308;--tw-yellow-600:#ca8a04;--tw-yellow-700:#a16207;--tw-yellow-800:#854d0e;--tw-yellow-900:#713f12;--tw-lime-50:#f7fee7;--tw-lime-100:#ecfccb;--tw-lime-200:#d9f99d;--tw-lime-300:#bef264;--tw-lime-400:#a3e635;--tw-lime-500:#84cc16;--tw-lime-600:#65a30d;--tw-lime-700:#4d7c0f;--tw-lime-800:#3f6212;--tw-lime-900:#365314;--tw-green-50:#f0fdf4;--tw-green-100:#dcfce7;--tw-green-200:#bbf7d0;--tw-green-300:#86efac;--tw-green-400:#4ade80;--tw-green-500:#22c55e;--tw-green-600:#16a34a;--tw-green-700:#15803d;--tw-green-800:#166534;--tw-green-900:#14532d;--tw-emerald-50:#ecfdf5;--tw-emerald-100:#d1fae5;--tw-emerald-200:#a7f3d0;--tw-emerald-300:#6ee7b7;--tw-emerald-400:#34d399;--tw-emerald-500:#10b981;--tw-emerald-600:#059669;--tw-emerald-700:#047857;--tw-emerald-800:#065f46;--tw-emerald-900:#064e3b;--tw-teal-50:#f0fdfa;--tw-teal-100:#ccfbf1;--tw-teal-200:#99f6e4;--tw-teal-300:#5eead4;--tw-teal-400:#2dd4bf;--tw-teal-500:#14b8a6;--tw-teal-600:#0d9488;--tw-teal-700:#0f766e;--tw-teal-800:#115e59;--tw-teal-900:#134e4a;--tw-cyan-50:#ecfeff;--tw-cyan-100:#cffafe;--tw-cyan-200:#a5f3fc;--tw-cyan-300:#67e8f9;--tw-cyan-400:#22d3ee;--tw-cyan-500:#06b6d4;--tw-cyan-600:#0891b2;--tw-cyan-700:#0e7490;--tw-cyan-800:#155e75;--tw-cyan-900:#164e63;--tw-sky-50:#f0f9ff;--tw-sky-100:#e0f2fe;--tw-sky-200:#bae6fd;--tw-sky-300:#7dd3fc;--tw-sky-400:#38bdf8;--tw-sky-500:#0ea5e9;--tw-sky-600:#0284c7;--tw-sky-700:#0369a1;--tw-sky-800:#075985;--tw-sky-900:#0c4a6e;--tw-blue-50:#eff6ff;--tw-blue-100:#dbeafe;--tw-blue-200:#bfdbfe;--tw-blue-300:#93c5fd;--tw-blue-400:#60a5fa;--tw-blue-500:#3b82f6;--tw-blue-600:#2563eb;--tw-blue-700:#1d4ed8;--tw-blue-800:#1e40af;--tw-blue-900:#1e3a8a;--tw-indigo-50:#eef2ff;--tw-indigo-100:#e0e7ff;--tw-indigo-200:#c7d2fe;--tw-indigo-300:#a5b4fc;--tw-indigo-400:#818cf8;--tw-indigo-500:#6366f1;--tw-indigo-600:#4f46e5;--tw-indigo-700:#4338ca;--tw-indigo-800:#3730a3;--tw-indigo-900:#312e81;--tw-violet-50:#f5f3ff;--tw-violet-100:#ede9fe;--tw-violet-200:#ddd6fe;--tw-violet-300:#c4b5fd;--tw-violet-400:#a78bfa;--tw-violet-500:#8b5cf6;--tw-violet-600:#7c3aed;--tw-violet-700:#6d28d9;--tw-violet-800:#5b21b6;--tw-violet-900:#4c1d95;--tw-purple-50:#faf5ff;--tw-purple-100:#f3e8ff;--tw-purple-200:#e9d5ff;--tw-purple-300:#d8b4fe;--tw-purple-400:#c084fc;--tw-purple-500:#a855f7;--tw-purple-600:#9333ea;--tw-purple-700:#7e22ce;--tw-purple-800:#6b21a8;--tw-purple-900:#581c87;--tw-fuchsia-50:#fdf4ff;--tw-fuchsia-100:#fae8ff;--tw-fuchsia-200:#f5d0fe;--tw-fuchsia-300:#f0abfc;--tw-fuchsia-400:#e879f9;--tw-fuchsia-500:#d946ef;--tw-fuchsia-600:#c026d3;--tw-fuchsia-700:#a21caf;--tw-fuchsia-800:#86198f;--tw-fuchsia-900:#701a75;--tw-pink-50:#fdf2f8;--tw-pink-100:#fce7f3;--tw-pink-200:#fbcfe8;--tw-pink-300:#f9a8d4;--tw-pink-400:#f472b6;--tw-pink-500:#ec4899;--tw-pink-600:#db2777;--tw-pink-700:#be185d;--tw-pink-800:#9d174d;--tw-pink-900:#831843;--tw-rose-50:#fff1f2;--tw-rose-100:#ffe4e6;--tw-rose-200:#fecdd3;--tw-rose-300:#fda4af;--tw-rose-400:#fb7185;--tw-rose-500:#f43f5e;--tw-rose-600:#e11d48;--tw-rose-700:#be123c;--tw-rose-800:#9f1239;--tw-rose-900:#881337}`
+
+	filePath := filepath.Join(projectName, "static", "twcolors.min.css")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating twcolors.min.css file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(cssContent)
+	if err != nil {
+		fmt.Println("error writing twcolors.min.css content to file: ", err)
+	}
+}
+
 func createCssFile(projectName string) {
 	cssContent := `* {
-	margin: 0;
-	padding: 0;
-	box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
 }
-	
+
 html,
 body {
-    width: 100%;
-    height: 100%;
-    font-family: courier;
+  height: 100%;
+  width: 100%;
+  font-family: Verdana, Arial, Tahoma, sans-serif;
+  font-size: 1rem;
 }
 
-header {
-    padding: 1.5em 2em;
-}
-
-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 1024px;
-    margin: auto;
-}
-
-ul {
-    display: flex;
-    align-items: center;
-}
-
-li {
-    margin: 0 0.5em;
-    list-style: none;
-}
-
-a {
-    text-decoration: none;
-    font-weight: bold;
-    color: tomato;
-    font-size: 1.25em;
-}
-
-button {
-    padding: 0.5em 1.5em;
-    border: none;
-    background: tomato;
-    color: white;
-    text-transform: uppercase;
-    cursor: pointer;
+body {
+  position: relative;
 }
 
 main {
-    height: 80%;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--tw-slate-100);
+  background: linear-gradient(
+    to right,
+    var(--tw-indigo-900),
+    var(--tw-indigo-800),
+    var(--tw-indigo-900)
+  );
 }
 
-section {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+main > div {
+  padding: 1.5rem;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
-section>h1 {
-    margin-bottom: 0.5em;
+h1 {
+  padding-bottom: 2rem;
+  font-size: 2.5rem;
 }
 
-section>p {
-    text-align: center;
-    font-weight: bold;
-    max-width: 65ch;
-    font-weight: 1em;
+p {
+  padding-bottom: 2rem;
+  font-size: 1.2rem;
 }
 
 form {
-    padding: 1.5em;
-    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-    display: flex;
-    flex-direction: column;
-    width: 25em;
-    margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 22rem;
+}
+
+form > p {
+  padding-top: 1rem;
+  padding-bottom: 0;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--tw-red-500);
+}
+
+form > div {
+  padding-top: 1rem;
+}
+
+form > div > button {
+  width: 100%;
 }
 
 input {
-    padding: 0.5em;
-    width: 100%;
+  padding: 0.5rem;
+  width: 100%;
+  margin-bottom: 1rem;
+  border: none;
+  border-radius: 0.25rem;
 }
 
-form>p {
+button {
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: var(--tw-green-500);
+  color: var(--tw-slate-100);
+  font-weight: bold;
+}
+
+@media screen and (min-width: 768px) {
+  h1 {
+    font-size: 4.5rem;
+  }
+
+  p {
+    font-size: 1.5rem;
     text-align: center;
-    font-weight: bold;
-    margin-bottom: 0.25em;
-}
-
-form>div {
-    margin: 1em auto;
     width: 100%;
+    max-width: 65ch;
+  }
+
+  form {
+    min-width: 32rem;
+  }
+
+  form > div {
+    flex-direction: row;
+    display: flex;
+    align-items: center;
+  }
+
+  label {
+    min-width: 24rem;
+  }
+
+  input {
+    margin-bottom: 0;
+    width: 95%;
+  }
 }
 
-form>button {
-    margin: 1em 5em;
-    padding: 0.5em 1.5em;
-    border: none;
-    background: tomato;
-    color: white;
-    text-transform: uppercase;
-    cursor: pointer;
-}
 `
 
 	filePath := filepath.Join(projectName, "static", "styles.css")
@@ -610,7 +551,8 @@ form>button {
 func createIgnoreFile(projectName string) {
 	dbFilename := strings.ToLower(projectName) + ".db"
 
-	ignoreContent := fmt.Sprintf(`# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
+	ignoreContent := fmt.Sprintf(
+		`# Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,linux,windows,macos
 
 .env
@@ -715,7 +657,9 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
-`, dbFilename)
+`,
+		dbFilename,
+	)
 
 	filePath := filepath.Join(projectName, ".gitignore")
 
