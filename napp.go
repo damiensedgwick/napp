@@ -17,7 +17,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v0.6.0",
+		Version:   "v0.6.1",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -118,6 +118,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/mail"
 	"os"
 	"time"
 
@@ -151,64 +152,24 @@ func main() {
 	}
 
 	e := echo.New()
-
+	e.Renderer = newTemplate()
 	e.Static("/static", "static")
-	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.Secure())
-
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "method=${method}, uri=${uri}, status=${status}\n",
+	}))
 	store := sessions.NewCookieStore([]byte(os.Getenv("%s")))
 	e.Use(session.Middleware(store))
-
-	e.Renderer = newTemplate()
 
 	db, err := gorm.Open(sqlite.Open(os.Getenv("%s")), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
-
 	db.AutoMigrate(&Lead{}, &User{})
 
-	e.GET("/", func(c echo.Context) error {
-		sess, _ := session.Get("session", c)
-
-		if sess.Values["user"] != nil {
-			var user User
-
-			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
-			if err != nil {
-				fmt.Println("error unmarshalling user value")
-				return err
-			}
-
-			return c.Render(200, "index", newPageData(user, newLeadFormData()))
-		}
-
-		return c.Render(200, "index", newPageData(newUser(), newLeadFormData()))
-	})
-
-	e.POST("/join-waitlist", func(c echo.Context) error {
-		email := c.FormValue("email")
-
-		if leadExists(email, db) {
-			leadFormData := LeadFormData{
-				Errors: map[string]string{
-					"email": "Email is already subscribed",
-				},
-				Values: map[string]string{
-					"email": email,
-				},
-			}
-
-			return c.Render(422, "waitlist", leadFormData)
-		}
-
-		db.Create(&Lead{
-			Email: email,
-		})
-
-		return c.Render(200, "waitlist", newLeadFormData())
-	})
+	e.GET("/", homepageHandler())
+	e.POST("/join-waitlist", joinWaitlistHandler(db))
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
@@ -222,6 +183,24 @@ func newPageData(user User, leadForm LeadFormData) PageData {
 	return PageData{
 		User:     user,
 		LeadForm: leadForm,
+	}
+}
+
+func homepageHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		sess, _ := session.Get("session", c)
+		if sess.Values["user"] != nil {
+			var user User
+			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
+			if err != nil {
+				fmt.Println("error unmarshalling user value")
+				return err
+			}
+
+			return c.Render(200, "index", newPageData(user, newLeadFormData()))
+		}
+
+		return c.Render(200, "index", newPageData(newUser(), newLeadFormData()))
 	}
 }
 
@@ -241,6 +220,49 @@ func newLeadFormData() LeadFormData {
 	return LeadFormData{
 		Errors: map[string]string{},
 		Values: map[string]string{},
+	}
+}
+
+func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		email := c.FormValue("email")
+		_, err := mail.ParseAddress(email)
+		if err != nil {
+			return c.Render(422, "waitlist", LeadFormData{
+				Errors: map[string]string{
+					"email": "Oops! That email appears to be invalid",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		if leadExists(email, db) {
+			return c.Render(422, "waitlist", LeadFormData{
+				Errors: map[string]string{
+					"email": "Oops! It appears you are already subscribed",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		lead := Lead{
+			Email: email,
+		}
+
+		if err := db.Create(&lead).Error; err != nil {
+			return c.Render(500, "waitlist", LeadFormData{
+				Errors: map[string]string{
+					"email": "Oops! It appears we have had an error",
+				},
+				Values: map[string]string{},
+			})
+		}
+
+		return c.Render(200, "waitlist", newLeadFormData())
 	}
 }
 
@@ -304,11 +326,10 @@ func createHtmlFile(projectName string) {
 </head>
 
 <body>
-
   <main>
-    <div>
-      <h1>%s</h1>
-      <p>Join our waiting list and you'll be the first to know when we launch, ensuring you don't miss out on any exciting updates or early access opportunities.</p>
+    <div class="hero">
+      <h1 class="hero__title">%s</h1>
+      <p class="hero__intro">Join our waiting list and you'll be the first to know when we launch, ensuring you don't miss out on any exciting updates or early access opportunities.</p>
       {{ template "waitlist" .LeadForm }}
     </div>
   </main>
@@ -316,7 +337,7 @@ func createHtmlFile(projectName string) {
   <script type="text/javascript">
   document.addEventListener("DOMContentLoaded", (event) => {
     document.body.addEventListener('htmx:beforeSwap', function (evt) {
-      if (evt.detail.xhr.status === 422) {
+      if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 500) {
         console.log("setting status to paint");
         // allow 422 responses to swap as we are using this as a signal that
         // a form was submitted with bad data and want to rerender with the
@@ -334,10 +355,11 @@ func createHtmlFile(projectName string) {
 {{ end }}
 
 {{ block "waitlist" . }}      
-<form id="waitlist-form" hx-post="/join-waitlist" hx-swap="outerHTML">
-  <div>
-    <label for="email">
+<form class="waitlist-form" id="waitlist-form" hx-post="/join-waitlist" hx-swap="outerHTML">
+  <div class="waitlist-form__group">
+    <label class="waitlist-form__label" for="email">
       <input 
+        class="waitlist-form__input"
         type="text"
         name="email"
         placeholder="Please enter your email"
@@ -348,10 +370,13 @@ func createHtmlFile(projectName string) {
       >
     </label>
 
-    <button type="submit">Join Waitlist</button>
-  </div> 
+    <button class="btn waitlist-form__btn" type="submit">Join Waitlist</button>
+  </div>
+
   {{ if .Errors.email }}
-  <p>{{ .Errors.email }}</p>
+  <p class="waitlist-form__message waitlist-form__message-error">
+    {{ .Errors.email }}
+  </p>
   {{ end }}
 </form>
 {{ end }}
@@ -421,14 +446,27 @@ body {
   font-size: 1rem;
 }
 
-body {
-  position: relative;
-}
-
 main {
   height: 100%;
   width: 100%;
+}
+
+.btn {
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: var(--tw-green-500);
+  color: var(--tw-slate-100);
+  font-weight: bold;
+}
+
+.hero {
+  padding: 1.5rem;
+  height: 100%;
+  width: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   color: var(--tw-slate-100);
@@ -440,49 +478,30 @@ main {
   );
 }
 
-main > div {
-  padding: 1.5rem;
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-h1 {
+.hero__title {
   padding-bottom: 2rem;
   font-size: 2.5rem;
 }
 
-p {
+.hero__intro {
   padding-bottom: 2rem;
   font-size: 1.2rem;
 }
 
-form {
+.waitlist-form {
   display: flex;
   flex-direction: column;
   min-width: 22rem;
 }
 
-form > p {
-  padding-top: 1rem;
-  padding-bottom: 0;
-  text-align: center;
-  font-size: 1rem;
-  color: var(--tw-red-500);
-}
-
-form > div {
+.waitlist-form__group {
   padding-top: 1rem;
 }
 
-form > div > button {
-  width: 100%;
+.waitlist-form__label {
 }
 
-input {
+.waitlist-form__input {
   padding: 0.5rem;
   width: 100%;
   margin-bottom: 1rem;
@@ -490,48 +509,53 @@ input {
   border-radius: 0.25rem;
 }
 
-button {
-  border: none;
-  border-radius: 0.25rem;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  background: var(--tw-green-500);
-  color: var(--tw-slate-100);
-  font-weight: bold;
+.waitlist-form__message {
+  height: 2.25rem;
+  padding-top: 1rem;
+  padding-bottom: 0;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.waitlist-form__message-error {
+  color: var(--tw-red-500);
+}
+
+.waitlist-form__btn {
+  width: 100%;
 }
 
 @media screen and (min-width: 768px) {
-  h1 {
+  .hero__title {
     font-size: 4.5rem;
   }
 
-  p {
+  .hero__intro {
     font-size: 1.5rem;
     text-align: center;
     width: 100%;
     max-width: 65ch;
   }
 
-  form {
+  .waitlist-form {
     min-width: 32rem;
   }
 
-  form > div {
+  .waitlist-form__group {
     flex-direction: row;
     display: flex;
     align-items: center;
   }
 
-  label {
+  .waitlist-form__label {
     min-width: 24rem;
   }
 
-  input {
+  .waitlist-form__input {
     margin-bottom: 0;
     width: 95%;
   }
 }
-
 `
 
 	filePath := filepath.Join(projectName, "static", "styles.css")
