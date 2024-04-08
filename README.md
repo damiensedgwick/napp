@@ -125,9 +125,15 @@ copied into the Docker image, resulting in a smaller footprint the final Docker 
 
 `docker run -d -p 8080:8080 app-name`
 
-### Deployment
+## Deployment
 
-Coming soon...
+At the moment I recommend using Fly.io for deploying Nano Apps. They provide a great
+command line tool to make managing the process easy and you can have 3 x small projects
+on there each with a 1gb persisted SQLite database volume for prototyping.
+
+### Getting your Nano App Deploy on Fly.io
+
+Coming Soon...
 
 ## Contributing
 I'd love to have your help making [project name] even better! Here's how to get involved:
