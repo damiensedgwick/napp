@@ -10,6 +10,7 @@ building your application.
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
 
