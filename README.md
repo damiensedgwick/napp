@@ -134,7 +134,46 @@ on there each with a 1gb persisted SQLite database volume for prototyping.
 
 ### Getting your Nano App Deploy on Fly.io
 
-Coming Soon...
+You will need to make sure you have the Fly.io command line tools installed for the
+following steps. If you do not have them installed, you can find out how to install them
+here: [flyctl command line tool](https://fly.io/docs/hands-on/install-flyctl/)
+
+Once you have installed the above command line tools and signed in to Fly.io, you are
+ready to proceed with the next steps, each step is supposed to be run from your project
+root.
+
+1. Get your app ready for deploying: `fly launch --no-deploy`
+
+The command line will prompt you to check if you would like to change the default
+configuration. It is important to say yes so that you can select your region and
+lower the apps memory to 256mb vs the default settings.
+
+2. Copy the following into your `fly.toml`
+
+```toml
+[[mounts]]
+  source = "godo_database"
+  destination = "/data"
+  initial_size = "1gb"
+```
+
+3. Create your volume `fly volume create your-app-name -r <region> -n <count> -s <size>`
+
+An example would be `fly volume create your-app-name -r lrh -n 1 -s 1` for 1 volume in
+the London region and a size of 1gb.
+
+5. Check your volume is correctect: `fly volumes list`
+
+```bash
+# expected output
+ID                      STATE   NAME            SIZE    REGION  ZONE    ENCRYPTED       ATTACHED VM     CREATED AT
+vol_some-id-number    created   app_data     1GB        lhr     bXXc    true            4573d4857eh34   20 hours ago
+```
+
+5. Deploy your app `fly deploy --ha=false`
+
+Providing that I have not forgot anything, that should be all you need to do to get
+your nano app deployed on Fly.io with some persisted storage.
 
 ## Contributing
 I'd love to have your help making [project name] even better! Here's how to get involved:
