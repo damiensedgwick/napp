@@ -159,7 +159,7 @@ lower the apps memory to 256mb vs the default settings.
 
 3. Create your volume `fly volume create your-app-name -r <region> -n <count> -s <size>`
 
-An example would be `fly volume create your-app-name -r lrh -n 1 -s 1` for 1 volume in
+An example would be `fly volume create your-app-name -r lhr -n 1 -s 1` for 1 volume in
 the London region and a size of 1gb.
 
 5. Check your volume is correctect: `fly volumes list`
