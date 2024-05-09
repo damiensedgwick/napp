@@ -175,6 +175,8 @@ vol_some-id-number    created   app_data     1GB        lhr     bXXc    true    
 Providing that I have not forgot anything, that should be all you need to do to get
 your nano app deployed on Fly.io with some persisted storage.
 
+# TODO... ADD SECRETS INFO
+
 ## Contributing
 I'd love to have your help making [project name] even better! Here's how to get involved:
 
