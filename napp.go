@@ -17,7 +17,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v1.0.0",
+		Version:   "v1.0.1",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -649,7 +649,7 @@ func createHtmlFile(projectName string) {
     {{ end }}
 
     <p class="auth-form__type">Already have an account? <button class="btn btn-ghost" type="button"
-        hx-get="/auth/sign-in" hx-target="body">Sign In</button></p>
+        hx-get="/auth/sign-in" hx-target="body">Register</button></p>
   </form>
 </div>
 {{ end }}
