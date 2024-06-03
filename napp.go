@@ -17,7 +17,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v0.6.1",
+		Version:   "v1.0.0",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -1032,7 +1032,7 @@ main {
 }
 
 .waitlist-form__message-error {
-  color: var(--tw-red-500);
+  color: var(--tw-slate-100);
 }
 
 .waitlist-form__btn {
