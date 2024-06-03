@@ -95,6 +95,7 @@ func createProject(projectName string) (bool, error) {
 
 	createGoMainFile(projectName)
 	createHtmlFile(projectName)
+	createDashboardHtmlFile(projectName)
 	createHtmxFile(projectName)
 	createTwColorsFile(projectName)
 	createCssFile(projectName)
@@ -118,6 +119,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
+	"net/http"
 	"net/mail"
 	"os"
 	"time"
@@ -127,6 +130,7 @@ import (
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -170,16 +174,22 @@ func main() {
 
 	e.GET("/", homepageHandler())
 	e.POST("/join-waitlist", joinWaitlistHandler(db))
+	e.GET("/auth/sign-in", signIn())
+	e.POST("/auth/sign-in", signInWithEmailAndPassword(db))
+	e.GET("/auth/sign-up", signUp())
+	e.POST("/auth/sign-up", signUpWithEmailAndPassword(db))
+	e.POST("/auth/sign-out", signOut())
+	e.GET("/dashboard", dashboardHandler())
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
 type PageData struct {
 	User     User
-	LeadForm LeadFormData
+	LeadForm FormData
 }
 
-func newPageData(user User, leadForm LeadFormData) PageData {
+func newPageData(user User, leadForm FormData) PageData {
 	return PageData{
 		User:     user,
 		LeadForm: leadForm,
@@ -197,10 +207,10 @@ func homepageHandler() echo.HandlerFunc {
 				return err
 			}
 
-			return c.Render(200, "index", newPageData(user, newLeadFormData()))
+			return c.Render(200, "index", newPageData(user, newFormData()))
 		}
 
-		return c.Render(200, "index", newPageData(newUser(), newLeadFormData()))
+		return c.Render(200, "index", nil)
 	}
 }
 
@@ -211,13 +221,13 @@ type Lead struct {
 	UpdatedAt *time.Time
 }
 
-type LeadFormData struct {
+type FormData struct {
 	Errors map[string]string
 	Values map[string]string
 }
 
-func newLeadFormData() LeadFormData {
-	return LeadFormData{
+func newFormData() FormData {
+	return FormData{
 		Errors: map[string]string{},
 		Values: map[string]string{},
 	}
@@ -228,9 +238,9 @@ func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
 		email := c.FormValue("email")
 		_, err := mail.ParseAddress(email)
 		if err != nil {
-			return c.Render(422, "waitlist", LeadFormData{
+			return c.Render(422, "waitlist", FormData{
 				Errors: map[string]string{
-					"email": "Oops! That email appears to be invalid",
+					"email": "Oops! That email address appears to be invalid",
 				},
 				Values: map[string]string{
 					"email": email,
@@ -239,7 +249,7 @@ func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
 		}
 
 		if leadExists(email, db) {
-			return c.Render(422, "waitlist", LeadFormData{
+			return c.Render(422, "waitlist", FormData{
 				Errors: map[string]string{
 					"email": "Oops! It appears you are already subscribed",
 				},
@@ -254,7 +264,7 @@ func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
 		}
 
 		if err := db.Create(&lead).Error; err != nil {
-			return c.Render(500, "waitlist", LeadFormData{
+			return c.Render(500, "waitlist", FormData{
 				Errors: map[string]string{
 					"email": "Oops! It appears we have had an error",
 				},
@@ -262,18 +272,22 @@ func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
 			})
 		}
 
-		return c.Render(200, "waitlist", newLeadFormData())
+		return c.Render(200, "waitlist-joined", nil)
 	}
 }
 
 func leadExists(email string, db *gorm.DB) bool {
 	var lead Lead
 	err := db.First(&lead, "email = ?", email).Error
-	if err == gorm.ErrRecordNotFound {
-		return false
-	}
 
-	return true
+	return err != gorm.ErrRecordNotFound
+}
+
+func userExists(email string, db *gorm.DB) bool {
+	var user User
+	err := db.First(&user, "email = ?", email).Error
+
+	return err != gorm.ErrRecordNotFound
 }
 
 type User struct {
@@ -281,12 +295,200 @@ type User struct {
 	Name      string
 	Email     string
 	Password  string
+	Role      string
 	CreatedAt time.Time
 	UpdatedAt *time.Time
 }
 
-func newUser() User {
-	return User{}
+func newUser(name string, email string, password string, role string, created_at time.Time, updated_at *time.Time) User {
+	return User{
+		Name:      name,
+		Email:     email,
+		Password:  password,
+		Role:      role,
+		CreatedAt: created_at,
+		UpdatedAt: updated_at,
+	}
+}
+
+func signUp() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		return c.Render(200, "sign-up-form", nil)
+	}
+}
+
+func signUpWithEmailAndPassword(db *gorm.DB) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		name := c.FormValue("name")
+		email := c.FormValue("email")
+		password := c.FormValue("password")
+
+		_, err := mail.ParseAddress(email)
+		if err != nil {
+			return c.Render(422, "sign-up-form", FormData{
+				Errors: map[string]string{
+					"email": "Oops! That email address appears to be invalid",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		if userExists(email, db) {
+			return c.Render(422, "sign-up-form", FormData{
+				Errors: map[string]string{
+					"email": "Oops! It appears you are already registered",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+		if err != nil {
+			log.Fatal("Could not hash sign up password")
+		}
+
+		// Check if this is the first user
+		var count int64
+		if err := db.Model(&User{}).Count(&count).Error; err != nil {
+			return c.Render(500, "sign-up-form", FormData{
+				Errors: map[string]string{
+					"general": "Oops! It appears we have had an error",
+				},
+				Values: map[string]string{},
+			})
+		}
+
+		role := "user"
+		if count == 0 {
+			role = "admin"
+		}
+
+		user := User{
+			Name:      name,
+			Email:     email,
+			Password:  string(hash),
+			Role:      role,
+			CreatedAt: time.Now(),
+		}
+
+		if err := db.Create(&user).Error; err != nil {
+			return c.Render(500, "sign-up-form", FormData{
+				Errors: map[string]string{
+					"email": "Oops! It appears we have had an error",
+				},
+				Values: map[string]string{},
+			})
+		}
+
+		return c.Render(200, "index", nil)
+	}
+}
+
+func signIn() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		return c.Render(200, "sign-in-form", nil)
+	}
+}
+
+func signInWithEmailAndPassword(db *gorm.DB) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		email := c.FormValue("email")
+		password := c.FormValue("password")
+
+		_, err := mail.ParseAddress(email)
+		if err != nil {
+			return c.Render(422, "sign-in-form", FormData{
+				Errors: map[string]string{
+					"email": "Oops! That email address appears to be invalid",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		var user User
+		db.First(&user, "email = ?", email)
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+			return c.Render(422, "sign-in-form", FormData{
+				Errors: map[string]string{
+					"email": "Oops! Email address or password is incorrect.",
+				},
+				Values: map[string]string{
+					"email": email,
+				},
+			})
+		}
+
+		sess, _ := session.Get("session", c)
+		sess.Options = &sessions.Options{
+			Path:     "/",
+			MaxAge:   86400 * 7,
+			HttpOnly: true,
+		}
+
+		userBytes, err := json.Marshal(user)
+		if err != nil {
+			fmt.Println("error marshalling user value")
+			return err
+		}
+
+		sess.Values["user"] = userBytes
+
+		err = sess.Save(c.Request(), c.Response())
+		if err != nil {
+			fmt.Println("error saving session: ", err)
+			return err
+		}
+
+		return c.Render(200, "dashboard", newDashboardData(user))
+	}
+}
+
+func signOut() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		sess, _ := session.Get("session", c)
+		sess.Options.MaxAge = -1
+		err := sess.Save(c.Request(), c.Response())
+		if err != nil {
+			fmt.Println("error saving session")
+			return err
+		}
+
+		return c.Render(200, "index", nil)
+	}
+}
+
+type DashboardData struct {
+	User User
+}
+
+func newDashboardData(user User) DashboardData {
+	return DashboardData{
+		User: user,
+	}
+}
+
+func dashboardHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		sess, _ := session.Get("session", c)
+		if sess.Values["user"] != nil {
+			var user User
+			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
+			if err != nil {
+				fmt.Println("error unmarshalling user value")
+				return err
+			}
+
+			return c.Render(200, "dashboard", newDashboardData(user))
+		}
+
+		return c.Redirect(http.StatusFound, "/")
+	}
 }
 
 `, sessEnv, dbEnv)
@@ -325,7 +527,32 @@ func createHtmlFile(projectName string) {
   <script src="static/htmx.min.js"></script>
 </head>
 
-<body>
+<body id="body">
+  <nav class="nav">
+    <div class="container">
+      <div class="nav__content">
+	    <a class="nav__brand" href="/" title="Heating Oil Tracker Home">
+	      %s
+	    </a>
+	    <ul class="nav__list">
+	      {{ if not .User }}
+	      <li class="nav__item">
+		    <button class="nav__link" hx-get="/auth/sign-in" hx-target="body">Sign In</button>
+	      </li>
+	      {{ end }}
+
+     	  {{ if .User }}
+	      <li class="nav__item">
+		    <a class="nav__link" href="/dashboard" title="Dashboard">Dashboard</a>
+	      </li>
+	      <li class="nav__item">
+		    <button class="nav__link" hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
+	      </li>
+          {{ end }}
+	    </ul>
+      </div>
+    </div>
+  </nav>
   <main>
     <div class="hero">
       <h1 class="hero__title">%s</h1>
@@ -381,7 +608,87 @@ func createHtmlFile(projectName string) {
 </form>
 {{ end }}
 
-  `, title)
+{{ block "waitlist-joined" . }}
+<p>Thanks! You successfully joined our waitlist</p>
+{{ end }}
+
+{{ block "sign-up-form" . }}
+<div class="auth-form__wrapper">
+  <form class="auth-form" id="sign-up-form" hx-post="/auth/sign-up" hx-target="body">
+    <p class="auth-form__title">
+	  %s
+    </p>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="name">
+        Name
+      </label>
+      <input id="name" class="auth-form__input" type="text" name="name" autocomplete="name" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="email">
+        Email
+      </label>
+      <input id="email" class="auth-form__input" type="text" name="email" autocomplete="email" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="password">
+        Password
+      </label>
+      <input id="password" class="auth-form__input" type="password" name="password" value="" required>
+    </div>
+
+    <button class="btn auth-form__btn" type="submit">Sign In</button>
+
+    {{ if .Errors.email}}
+    <p class="auth-form__message auth-form__message-error">
+      {{ .Errors.email}}
+    </p>
+    {{ end }}
+
+    <p class="auth-form__type">Already have an account? <button class="btn btn-ghost" type="button"
+        hx-get="/auth/sign-in" hx-target="body">Sign In</button></p>
+  </form>
+</div>
+{{ end }}
+
+{{ block "sign-in-form" . }}
+<div class="auth-form__wrapper">
+  <form class="auth-form" id="sign-in-form" hx-post="/auth/sign-in" hx-target="body">
+    <p class="auth-form__title">
+      %s
+    </p>
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="email">
+        Email
+      </label>
+      <input id="email" class="auth-form__input" type="text" name="email" autocomplete="email" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="password">
+        Password
+      </label>
+      <input id="password" class="auth-form__input" type="password" name="password" value="" required>
+    </div>
+
+    <button class="btn auth-form__btn" type="submit">Sign In</button>
+
+    {{ if .Errors.email}}
+    <p class="auth-form__message auth-form__message-error">
+      {{ .Errors.email}}
+    </p>
+    {{ end }}
+
+    <p class="auth-form__type">Do you need an account? <button class="btn btn-ghost" type="button"
+        hx-get="/auth/sign-up" hx-target="body">Register Now</button></p>
+  </form>
+</div>
+{{ end }}
+
+`, title, title, title, title)
 
 	filePath := filepath.Join(projectName, "template", "index.html")
 
@@ -394,6 +701,139 @@ func createHtmlFile(projectName string) {
 	_, err = f.WriteString(indexHTMLContent)
 	if err != nil {
 		fmt.Println("error writing index.html content to file: ", err)
+	}
+}
+
+func createDashboardHtmlFile(projectName string) {
+	pn := strings.ReplaceAll(projectName, "-", " ")
+
+	caser := cases.Title(language.English)
+	title := caser.String(pn)
+
+	dashboardHTMLContent := fmt.Sprintf(`{{ block "dashboard" . }}
+<!DOCTYPE html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heating Oil Tracker | Monitor and gauge your heating oil levels</title>
+  <meta name="description"
+    content="Effortlessly track your heating oil levels with our intuitive Heating Oil Tracker app. Stay in control of your home's warmth, ensuring you're never left in the cold. Sign up now for peace of mind!">
+  <link rel="icon" type="image/x-icon" href="static/favicon.png">
+  <link href="static/twcolors.min.css" rel="stylesheet">
+  <link href="static/styles.css" rel="stylesheet">
+  <script src="static/htmx.min.js"></script>
+</head>
+
+<body id="body">
+  <div class="dashboard__wrapper">
+    <aside class="dashboard__navigation">
+      <div>
+        <div class="dashboard__branding">
+          %s
+        </div>
+        <ul class="dashboard__navigation-list">
+          <li class="dashboard__navigation-item">
+            <button class="dashboard__navigation-link">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+              </svg>
+              Dashboard
+            </button>
+          </li>
+          <li class="dashboard__navigation-item">
+            <button class="dashboard__navigation-link">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+              </svg>
+              Team
+            </button>
+          </li>
+          <li class="dashboard__navigation-item">
+            <button class="dashboard__navigation-link">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+              </svg>
+              Projects
+            </button>
+          </li>
+          <li class="dashboard__navigation-item">
+            <button class="dashboard__navigation-link">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+              </svg>
+              Calendar
+            </button>
+          </li>
+        </ul>
+
+        {{ if and .User (eq .User.Role "admin") }}
+        <div class="dashboard__navigation-admin-separator"></div>
+        <ul class="dashboard__navigation-admin-list">
+          <li class="dashboard__navigation-item">
+            <button class="dashboard__navigation-link">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+              </svg>
+
+              Leads
+            </button>
+          </li>
+        </ul>
+        {{ end }}
+      </div>
+
+      <button class="btn dashboard__navigation-sign-out" hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
+    </aside>
+    <main class="dashboard__content">
+      <p>Dashboard</p>
+    </main>
+  </div>
+
+  <script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", (event) => {
+      document.body.addEventListener('htmx:beforeSwap', function (evt) {
+        if (evt.detail.xhr.status === 422) {
+          console.log("setting status to paint");
+          // allow 422 responses to swap as we are using this as a signal that
+          // a form was submitted with bad data and want to rerender with the
+          // errors
+          //
+          // set isError to false to avoid error logging in console
+          evt.detail.shouldSwap = true;
+          evt.detail.isError = false;
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>
+{{ end }}
+
+`, title)
+
+	filePath := filepath.Join(projectName, "template", "dashboard.html")
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("error creating dashboard.html file: ", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(dashboardHTMLContent)
+	if err != nil {
+		fmt.Println("error writing dashboard.html content to file: ", err)
 	}
 }
 
@@ -461,6 +901,80 @@ main {
   font-weight: bold;
 }
 
+.btn-ghost {
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  color: var(--tw-indigo-500);
+  background: none;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.container {
+  margin: 0 auto;
+  padding: 0 1rem;
+  max-width: 1440px;
+}
+
+.nav {
+  padding: 1.5rem 0;
+  position: fixed;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+.nav__content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  color: var(--tw-slate-100);
+  font-size: 1.25rem;
+  font-weight: bold;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.nav__brand>svg {
+  height: 1.8rem;
+  width: 1.8rem;
+}
+
+.nav__list {
+  width: 325px;
+  display: flex;
+  list-style: none;
+  justify-content: flex-end;
+}
+
+.nav__item {
+  margin-right: 1rem;
+  min-width: fit-content;
+}
+
+.nav__item:last-child {
+  margin: 0;
+}
+
+.nav__link {
+  cursor: pointer;
+  color: var(--tw-slate-100);
+  text-decoration: none;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  font-size: 1rem;
+}
+
+.nav__link:hover {
+  border-bottom: 2px solid var(--tw-slate-100);
+}
+
 .hero {
   padding: 1.5rem;
   height: 100%;
@@ -472,15 +986,15 @@ main {
   color: var(--tw-slate-100);
   background: linear-gradient(
     to right,
-    var(--tw-indigo-900),
-    var(--tw-indigo-800),
-    var(--tw-indigo-900)
+	var(--tw-indigo-700),
+	var(--tw-blue-600),
+	var(--tw-indigo-700));
   );
 }
 
 .hero__title {
   padding-bottom: 2rem;
-  font-size: 2.5rem;
+  font-size: 1.75rem;
 }
 
 .hero__intro {
@@ -525,16 +1039,211 @@ main {
   width: 100%;
 }
 
+.waitlist-form__message,
+.waitlist-form__message-error {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.auth-form__wrapper {
+  padding: 0 1rem;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.auth-form {
+  padding: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  border: solid 2px var(--tw-slate-900);
+  border-radius: 0.25rem;
+}
+
+.auth-form__title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--tw-indigo-600);
+  font-size: 1.75rem;
+  font-weight: bold;
+  text-decoration: none;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.auth-form__title>svg {
+  height: 2.8rem;
+  width: 2.8rem;
+}
+
+.auth-form__group {
+  padding-top: 0.5rem;
+}
+
+.auth-form__label {
+  margin-bottom: 0.25rem;
+  color: var(--tw-slate-900);
+}
+
+.auth-form__input {
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  width: 100%;
+  margin: 0.5rem 0;
+  border: solid 1px var(--tw-slate-900);
+  border-radius: 0.25rem;
+}
+
+.auth-form__message {
+  height: 2.25rem;
+  padding-top: 1rem;
+  padding-bottom: 0;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.auth-form__message-error {
+  color: var(--tw-red-500);
+}
+
+.auth-form__btn {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  width: 100%;
+  background: var(--tw-indigo-600);
+}
+
+.auth-form__message {
+  height: 2.25rem;
+  padding-top: 1rem;
+  padding-bottom: 0;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.auth-form__message-error {
+  color: var(--tw-red-500);
+}
+
+.auth-form__btn {
+  width: 100%;
+}
+
+.auth-form__type {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.dashboard__wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+}
+
+.dashboard__navigation {
+  width: 100%;
+  max-width: 300px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--tw-slate-100);
+  background: linear-gradient(to bottom,
+      var(--tw-indigo-700),
+      var(--tw-blue-600),
+      var(--tw-indigo-700));
+  border-right: 1px solid var(--tw-slate-900);
+}
+
+.dashboard__branding {
+  padding: 1rem;
+}
+
+.dashboard__navigation-list,
+.dashboard__navigation-admin-list {
+  padding: 1.5rem 1rem;
+}
+
+.dashboard__branding {
+  font-size: 1.5rem;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+.dashboard__navigation-list {
+  list-style: none;
+}
+
+.dashboard__navigation-admin-separator {
+  border-top: 1px solid var(--tw-slate-100);
+  padding: 0 1rem;
+  width: 90%;
+  margin: 0 auto;
+  opacity: 0.5;
+}
+
+.dashboard__navigation-admin-list {
+  list-style: none;
+}
+
+.dashboard__navigation-item {
+  margin: 0.75rem 0;
+}
+
+.dashboard__navigation-item:first-child {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.dashboard__navigation-link {
+  color: var(--tw-slate-100);
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.dashboard__navigation-link>svg {
+  height: 1.5rem;
+  width: 1.5rem;
+  margin-right: 0.75rem;
+}
+
+.dashboard__navigation-sign-out {
+  margin: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--tw-slate-100);
+  color: var(--tw-slate-900);
+  font-size: 1rem;
+}
+
+.dashboard__content {
+  padding: 1.5rem 1rem;
+  width: 100%;
+  height: 100%;
+  background: var(--tw-slate-100);
+}
+
 @media screen and (min-width: 768px) {
+.nav__brand {
+    font-size: 1.5rem;
+  }
+
   .hero__title {
-    font-size: 4.5rem;
+    font-size: 4.25rem;
   }
 
   .hero__intro {
     font-size: 1.5rem;
     text-align: center;
     width: 100%;
-    max-width: 65ch;
+    max-width: 68ch;
   }
 
   .waitlist-form {
@@ -554,6 +1263,10 @@ main {
   .waitlist-form__input {
     margin-bottom: 0;
     width: 95%;
+  }
+
+  .auth-form__title {
+    font-size: 2.5rem;
   }
 }
 `
