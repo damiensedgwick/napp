@@ -175,10 +175,21 @@ vol_some-id-number    created   app_data     1GB        lhr     bXXc    true    
 Providing that I have not forgot anything, that should be all you need to do to get
 your nano app deployed on Fly.io with some persisted storage.
 
-# TODO... ADD SECRETS INFO
+6. You will need to add 2 environment variables to your Fly application. As they are
+dynamic and specific to your application I am not able to tell you what they are.
+
+They should however look something like this
+
+`SOME_NAME_COOKIE_STORE_SECRET`
+
+and
+
+`SOME_NAME_DB_PATH`
+
+These will both need to be added to your application for it to run properly once deployed.
 
 ## Contributing
-I'd love to have your help making [project name] even better! Here's how to get involved:
+I'd love to have your help making Napp even better! Here's how to get involved:
 
 - Fork the repository. This creates your own copy where you can work on changes.
 - Create a separate branch for your changes. This helps keep your work organised.
