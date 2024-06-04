@@ -24,8 +24,7 @@ If you want to take a look at how a Nano App is structured by napp, please vist 
 
 Below are some potential use cases for a Nano App.
 
-**UI/UX Experimentation** - Use HTMX's dynamic capabilities to experiment with different user interface
-flows and interactions.
+**UI/UX Experimentation** - Use HTMX's dynamic capabilities to experiment with different user events.
 
 **Proof of Concepts** - Create lightweightapps to showcase the feasibility of a technical concept for
 clients or team members.
