@@ -253,6 +253,7 @@ func createCssFile(projectName string) {
 
 func createIgnoreFile(projectName string) {
 	dbFilename := strings.ToLower(projectName) + ".db"
+	envFilename := ".env"
 
 	ignoreTemplate, err := source.ReadFile("source/.gitignore")
 	if err != nil {
@@ -261,6 +262,7 @@ func createIgnoreFile(projectName string) {
 
 	ignoreContent := fmt.Sprintf(
 		string(ignoreTemplate),
+		envFilename,
 		dbFilename,
 	)
 

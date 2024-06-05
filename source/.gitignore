@@ -1,6 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/go,linux,windows,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,linux,windows,macos
 
+%s
 bin
 %s
 
