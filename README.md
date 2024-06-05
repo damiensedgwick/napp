@@ -12,6 +12,7 @@ building your application.
 - [Usage](#usage)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
+- [Contributors](#contributors)
 - [License](#license)
 
 ## About
@@ -163,10 +164,11 @@ I'd love to have your help making Napp even better! Here's how to get involved:
 - Create a separate branch for your changes. This helps keep your work organised.
 - Open a pull request with a clear description of your contributions.
 
-**NB** Up until this point I have been building the templates in a different project
-and then copying over the files into this cli so that I am able to build and test it
-before committing to a new version etc. Moving forward, I want to bring the template
-project into this repo so that it is easier to contribute to.
+## Contributors
+A huge shoutout to the following for contributing towards Napp and making it all that 
+little bit better!
+
+- [parMaster](https://github.com/parMaster)
 
 ## License
 The MIT License (MIT)
