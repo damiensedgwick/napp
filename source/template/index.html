@@ -1,0 +1,174 @@
+{{ block "index" . }}
+<!DOCTYPE html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Napp | Nano App | Go, HTMX & SQLite</title>
+  <meta name="description"
+    content="A command line tool that helps you build and test web app ideas blazingly-fast with a streamlined Go, HTMX, and SQLite stack. Authored by Damien Sedgwick.">
+  <link href="static/twcolors.min.css" rel="stylesheet">
+  <link href="static/styles.css" rel="stylesheet">
+  <script src="static/htmx.min.js"></script>
+</head>
+
+<body id="body">
+  <nav class="nav">
+    <div class="container">
+      <div class="nav__content">
+	    <a class="nav__brand" href="/" title="Heating Oil Tracker Home">
+	      %s
+	    </a>
+	    <ul class="nav__list">
+	      {{ if not .User }}
+	      <li class="nav__item">
+		    <button class="nav__link" hx-get="/auth/sign-in" hx-target="body">Sign In</button>
+	      </li>
+	      {{ end }}
+
+     	  {{ if .User }}
+	      <li class="nav__item">
+		    <a class="nav__link" href="/dashboard" title="Dashboard">Dashboard</a>
+	      </li>
+	      <li class="nav__item">
+		    <button class="nav__link" hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
+	      </li>
+          {{ end }}
+	    </ul>
+      </div>
+    </div>
+  </nav>
+  <main>
+    <div class="hero">
+      <h1 class="hero__title">%s</h1>
+      <p class="hero__intro">Join our waiting list and you'll be the first to know when we launch, ensuring you don't miss out on any exciting updates or early access opportunities.</p>
+      {{ template "waitlist" .LeadForm }}
+    </div>
+  </main>
+
+  <script type="text/javascript">
+  document.addEventListener("DOMContentLoaded", (event) => {
+    document.body.addEventListener('htmx:beforeSwap', function (evt) {
+      if (evt.detail.xhr.status === 422 || evt.detail.xhr.status === 500) {
+        console.log("setting status to paint");
+        // allow 422 responses to swap as we are using this as a signal that
+        // a form was submitted with bad data and want to rerender with the
+        // errors
+        //
+        // set isError to false to avoid error logging in console
+        evt.detail.shouldSwap = true;
+        evt.detail.isError = false;
+      }
+    });
+  });
+  </script>
+</body>
+</html>
+{{ end }}
+
+{{ block "waitlist" . }}      
+<form class="waitlist-form" id="waitlist-form" hx-post="/join-waitlist" hx-swap="outerHTML">
+  <div class="waitlist-form__group">
+    <label class="waitlist-form__label" for="email">
+      <input 
+        class="waitlist-form__input"
+        type="text"
+        name="email"
+        placeholder="Please enter your email"
+        {{ if .Values.email}}
+        value="{{ .Values.email }}"
+        {{end}} 
+        required
+      >
+    </label>
+
+    <button class="btn waitlist-form__btn" type="submit">Join Waitlist</button>
+  </div>
+
+  {{ if .Errors.email }}
+  <p class="waitlist-form__message waitlist-form__message-error">
+    {{ .Errors.email }}
+  </p>
+  {{ end }}
+</form>
+{{ end }}
+
+{{ block "waitlist-joined" . }}
+<p>Thanks! You successfully joined our waitlist</p>
+{{ end }}
+
+{{ block "sign-up-form" . }}
+<div class="auth-form__wrapper">
+  <form class="auth-form" id="sign-up-form" hx-post="/auth/sign-up" hx-target="body">
+    <p class="auth-form__title">
+	  %s
+    </p>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="name">
+        Name
+      </label>
+      <input id="name" class="auth-form__input" type="text" name="name" autocomplete="name" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="email">
+        Email
+      </label>
+      <input id="email" class="auth-form__input" type="text" name="email" autocomplete="email" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="password">
+        Password
+      </label>
+      <input id="password" class="auth-form__input" type="password" name="password" value="" required>
+    </div>
+
+    <button class="btn auth-form__btn" type="submit">Register</button>
+
+    {{ if .Errors.email}}
+    <p class="auth-form__message auth-form__message-error">
+      {{ .Errors.email}}
+    </p>
+    {{ end }}
+
+    <p class="auth-form__type">Already have an account? <button class="btn btn-ghost" type="button"
+        hx-get="/auth/sign-in" hx-target="body">Sign In</button></p>
+  </form>
+</div>
+{{ end }}
+
+{{ block "sign-in-form" . }}
+<div class="auth-form__wrapper">
+  <form class="auth-form" id="sign-in-form" hx-post="/auth/sign-in" hx-target="body">
+    <p class="auth-form__title">
+      %s
+    </p>
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="email">
+        Email
+      </label>
+      <input id="email" class="auth-form__input" type="text" name="email" autocomplete="email" value="" required>
+    </div>
+
+    <div class="auth-form__group">
+      <label class="auth-form__label" for="password">
+        Password
+      </label>
+      <input id="password" class="auth-form__input" type="password" name="password" value="" required>
+    </div>
+
+    <button class="btn auth-form__btn" type="submit">Sign In</button>
+
+    {{ if .Errors.email}}
+    <p class="auth-form__message auth-form__message-error">
+      {{ .Errors.email}}
+    </p>
+    {{ end }}
+
+    <p class="auth-form__type">Do you need an account? <button class="btn btn-ghost" type="button"
+        hx-get="/auth/sign-up" hx-target="body">Register Now</button></p>
+  </form>
+</div>
+{{ end }}
