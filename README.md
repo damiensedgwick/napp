@@ -139,23 +139,33 @@ ID                      STATE   NAME            SIZE    REGION  ZONE    ENCRYPTE
 vol_some-id-number    created   app_data     1GB        lhr     bXXc    true            4573d4857eh34   20 hours ago
 ```
 
-5. Deploy your app `fly deploy --ha=false`
+5. Add your environment variables to Fly.io
+
+You will need to add the following variables to your app in the Fly.io dashboard.
+First navigate to your machine and then to secrets.
+
+Add the following 2 secrets:
+
+`APPNAME_NAME_COOKIE_STORE_SECRET` or `APP_NAME_NAME_COOKIE_STORE_SECRET`
+
+and
+
+`APPNAME_NAME_DB_PATH` or `APP_NAME_DB_PATH`
+
+**NB** Check your generated `.env` file to see how your app name should be written.
+
+Once these have both been added, we should be ready to deploy!
 
 Providing that I have not forgot anything, that should be all you need to do to get
 your nano app deployed on Fly.io with some persisted storage.
 
-6. You will need to add 2 environment variables to your Fly application. As they are
-dynamic and specific to your application I am not able to tell you what they are.
+6. Deploying your app
 
-They should however look something like this
+If everything has been configured correctly, you should be able to run the following:
 
-`SOME_NAME_COOKIE_STORE_SECRET`
+`fly deploy --ha=false`
 
-and
-
-`SOME_NAME_DB_PATH`
-
-These will both need to be added to your application for it to run properly once deployed.
+The `--ha=false` flag just turns off high availablilty to help keep things minimal.
 
 ## Contributing
 I'd love to have your help making Napp even better! Here's how to get involved:
