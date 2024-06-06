@@ -177,7 +177,7 @@ I'd love to have your help making Napp even better! Here's how to get involved:
 A huge shoutout to the following for contributing towards Napp and making it all that 
 little bit better!
 
-- [parMaster](https://github.com/parMaster)
+- [Dmytro Borshcanenko](https://github.com/parMaster)
 
 ## License
 The MIT License (MIT)
