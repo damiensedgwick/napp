@@ -156,9 +156,6 @@ and
 
 Once these have both been added, we should be ready to deploy!
 
-Providing that I have not forgot anything, that should be all you need to do to get
-your nano app deployed on Fly.io with some persisted storage.
-
 6. Deploying your app
 
 If everything has been configured correctly, you should be able to run the following:
@@ -166,6 +163,9 @@ If everything has been configured correctly, you should be able to run the follo
 `fly deploy --ha=false`
 
 The `--ha=false` flag just turns off high availablilty to help keep things minimal.
+
+🎉 Providing that I have not forgot anything, that should be all you need to do to
+get your nano app deployed on Fly.io with some persisted storage. 🎉
 
 ## Contributing
 I'd love to have your help making Napp even better! Here's how to get involved:
