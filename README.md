@@ -173,7 +173,7 @@ Once these have both been added, we should be ready to deploy for the last time!
 
 6. Run the following command to deploy your app and make use of your .env variables
 
-`fly deploy --ha=false`
+`fly deploy`
 
 🎉 That should be all you need to do to get your nano app deployed on Fly.io with persisted storage. 🎉
 
