@@ -6,6 +6,7 @@ creating a project, necessary files and connects them all up so you can dive str
 building your application.
 
 ## Table of Contents
+
 - [About](#about)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -16,6 +17,7 @@ building your application.
 - [License](#license)
 
 ## About
+
 **What is a Nano App?**
 The rules are simple, a nano app must have as few files as possible, as few directories as possible,
 little to no JavaScript (minus HTMX), has a small Docker image (size does matter) and must be easy
@@ -36,15 +38,18 @@ Below are some potential use cases for a Nano App.
 **HTMX Exploration** - Explore the power of HTMX for building reactive interfaces with minimal JavaScript.
 
 ## Prerequisites
+
 - Go 1.22 or higher (It may work on older versions of Go, I developed it using this version).
 - Make sure your Go bin is added to your path so that installed packages can be used globally.
 
 ## Installation
 
 ### Using Go
+
 `go install github.com/damiensedgwick/napp@latest`
 
 ### Using a release binary
+
 You can download the compiled binary for your machine from [Releases](https://github.com/damiensedgwick/napp/releases).
 Once you have done this, make sure the executable has the correct permissions and make sure it is in your path.
 
@@ -126,47 +131,54 @@ lower the apps memory to 256mb vs the default settings.
   initial_size = "1gb"
 ```
 
-3. Create your volume `fly volume create your-app-name -r <region> -n <count> -s <size>`
+3. Deploy your application `fly deploy`
 
-An example would be `fly volume create your-app-name -r lhr -n 1 -s 1` for 1 volume in
-the London region and a size of 1gb.
+This command should now deploy your application to Fly.io and create the
+necessary resources (such as our volume) in the process.
 
-5. Check your volume is correctect: `fly volumes list`
+4. List Machines to check attached volumes: `fly machine list`
 
 ```bash
 # expected output
-ID                      STATE   NAME            SIZE    REGION  ZONE    ENCRYPTED       ATTACHED VM     CREATED AT
-vol_some-id-number    created   app_data     1GB        lhr     bXXc    true            4573d4857eh34   20 hours ago
+my-app-name
+ID              NAME        STATE   REGION   IMAGE                  IP ADDRESS                      VOLUME                  CREATED                 LAST UPDATED            APP PLATFORM    PROCESS GROUP   SIZE
+328773d3c47d85  my-app-name stopped yul     flyio/myimageex:latest  fdaa:2:45b:a7b:19c:bbd4:95bb:2  vol_6vjywx86ym8mq3xv    2023-08-20T23:09:24Z    2023-08-20T23:16:15Z    v2              app             shared-cpu-1x:256MB
 ```
 
-5. Add your environment variables to Fly.io
+5. List volumes to check attached Machines: `fly volumes list`
+
+```bash
+# expected output
+ID                      STATE   NAME    SIZE    REGION  ZONE    ENCRYPTED       ATTACHED VM     CREATED AT
+vol_zmjnv8m81p5rywgx    created data    1GB     lhr     b6a7    true            5683606c41098e  3 minutes ago
+```
+
+6. Add your environment variables to Fly.io
 
 You will need to add the following variables to your app in the Fly.io dashboard.
 First navigate to your machine and then to secrets.
 
 Add the following 2 secrets:
 
-`APPNAME_NAME_COOKIE_STORE_SECRET` or `APP_NAME_NAME_COOKIE_STORE_SECRET`
+`APPNAME_NAME_COOKIE_STORE_SECRET="value"` or `APP_NAME_NAME_COOKIE_STORE_SECRET="value"`
 
 and
 
-`APPNAME_NAME_DB_PATH` or `APP_NAME_DB_PATH`
+`APPNAME_NAME_DB_PATH="value"` or `APP_NAME_DB_PATH="value"`
 
-**NB** Check your generated `.env` file to see how your app name should be written.
+**NB** Check your generated `.env` file to see how your app name should be
+written and add your database path value and your cookie store secret value.
 
-Once these have both been added, we should be ready to deploy!
+Once these have both been added, we should be ready to deploy for the last time!
 
-6. Deploying your app
-
-If everything has been configured correctly, you should be able to run the following:
+6. Run the following command to deploy your app and make use of your .env variables
 
 `fly deploy --ha=false`
-
-The `--ha=false` flag just turns off high availablilty to help keep things minimal.
 
 🎉 That should be all you need to do to get your nano app deployed on Fly.io with persisted storage. 🎉
 
 ## Contributing
+
 I'd love to have your help making Napp even better! Here's how to get involved:
 
 - Fork the repository. This creates your own copy where you can work on changes.
@@ -174,12 +186,14 @@ I'd love to have your help making Napp even better! Here's how to get involved:
 - Open a pull request with a clear description of your contributions.
 
 ## Contributors
-A huge shoutout to the following for contributing towards Napp and making it all that 
+
+A huge shoutout to the following for contributing towards Napp and making it all that
 little bit better!
 
 - [Dmytro Borshcanenko](https://github.com/parMaster)
 
 ## License
+
 The MIT License (MIT)
 
 Copyright (c) <year> Adam Veldhousen
