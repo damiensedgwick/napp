@@ -84,13 +84,6 @@ usually the default choice when wanting to develop and iterate quickly.
 
 `go run cmd/main.go`
 
-### Make
-
-I personally like using Make, I think it is simple and does the job well. The following
-command will clean, format, build and run the application.
-
-`make all`
-
 ### Docker
 
 Docker has been setup is so that the binary is prebuilt using Go and then it is simply
