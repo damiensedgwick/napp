@@ -89,6 +89,9 @@ usually the default choice when wanting to develop and iterate quickly.
 Docker has been setup is so that the binary is prebuilt using Go and then it is simply
 copied into the Docker image, resulting in a smaller footprint the final Docker image.
 
+**NB** The Dockerfile is currently setup to build for Linux, if your OS is not Linux
+you will need to change it accordingly.
+
 `docker build -t app-name .`
 
 `docker run -d -p 8080:8080 app-name`
