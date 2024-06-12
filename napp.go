@@ -106,7 +106,6 @@ func createProject(projectName string) (bool, error) {
 	createIgnoreFile(projectName)
 	createDotEnvFile(projectName)
 	createSqliteDbFile(projectName)
-	createMakefile(projectName)
 	createDockerfile(projectName)
 
 	return true, nil
@@ -314,28 +313,6 @@ func createSqliteDbFile(projectName string) {
 	_, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println("error creating database file: ", err)
-	}
-}
-
-func createMakefile(projectName string) {
-	makefileTemplate, err := source.ReadFile("source/Makefile")
-	if err != nil {
-		fmt.Println(fmt.Errorf("error reading source Makefile file: %w", err))
-	}
-
-	makefileContent := fmt.Sprintf(string(makefileTemplate), projectName)
-
-	filePath := filepath.Join(projectName, "Makefile")
-
-	f, err := os.Create(filePath)
-	if err != nil {
-		fmt.Println("error creating Makefile file: ", err)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(makefileContent)
-	if err != nil {
-		fmt.Println("error writing Makefile content to file: ", err)
 	}
 }
 
