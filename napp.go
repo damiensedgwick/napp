@@ -318,7 +318,6 @@ func createSqliteDbFile(projectName string) {
 }
 
 func createMakefile(projectName string) {
-
 	makefileTemplate, err := source.ReadFile("source/Makefile")
 	if err != nil {
 		fmt.Println(fmt.Errorf("error reading source Makefile file: %w", err))
@@ -341,13 +340,10 @@ func createMakefile(projectName string) {
 }
 
 func createDockerfile(projectName string) {
-
-	dockerfileTemplate, err := source.ReadFile("source/Dockerfile")
+	dockerfileContent, err := source.ReadFile("source/Dockerfile")
 	if err != nil {
 		fmt.Println(fmt.Errorf("error reading source Dockerfile file: %w", err))
 	}
-
-	dockerfileContent := fmt.Sprintf(string(dockerfileTemplate), projectName, projectName, projectName)
 
 	filePath := filepath.Join(projectName, "Dockerfile")
 
@@ -357,7 +353,7 @@ func createDockerfile(projectName string) {
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(dockerfileContent)
+	_, err = f.WriteString(string(dockerfileContent))
 	if err != nil {
 		fmt.Println("error writing Dockerfile content to file: ", err)
 	}

@@ -1,20 +1,21 @@
-# Use the official Ubuntu image as the base image
-FROM ubuntu:latest
+FROM golang:1.22.4-bullseye as base
 
-# Set the working directory inside the container
-WORKDIR /app
+WORKDIR /
 
-# Copy pre-built binary into the container
-COPY bin/%s /app/%s
+COPY . .
 
-# Copy all static files into the container
-COPY static /app/static
+RUN go mod download
 
-# Copy all template files into the container
-COPY template /app/template
+RUN go mod verify
 
-# Expose port 8080 to run the application
-EXPOSE 8080
+RUN GO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /app cmd/main.go
 
-# Command to run the application
-CMD ["./%s"]
+FROM gcr.io/distroless/base-debian12
+
+COPY --from=base /app .
+
+COPY static /static
+
+COPY template /template
+
+CMD ["/app"]
