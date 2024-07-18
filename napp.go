@@ -21,7 +21,7 @@ func main() {
 	app := &cli.App{
 		Name:      "napp",
 		UsageText: "[command] [command options]",
-		Version:   "v1.3.0",
+		Version:   "v1.3.1",
 		Description: `A command line tool that bootstraps Go, HTMX and SQLite web
 	 applications and Dockerises them for ease of deployment`,
 		Commands: []cli.Command{
@@ -54,7 +54,7 @@ func main() {
 						fmt.Println("cd " + projectname)
 						fmt.Println("go mod init")
 						fmt.Println("go mod tidy")
-						fmt.Println("make all")
+						fmt.Println("go run cmd/main.go")
 					}
 
 					return nil
