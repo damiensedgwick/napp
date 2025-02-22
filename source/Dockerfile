@@ -1,21 +1,39 @@
-FROM golang:1.22.4-bullseye as base
+# Build stage
+FROM golang:1.24-alpine AS builder
 
-WORKDIR /
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev
 
-COPY . .
+WORKDIR /app
 
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
 RUN go mod download
 
-RUN go mod verify
+# Copy source code
+COPY . .
 
-RUN GO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /app cmd/main.go
+# Build the application
+RUN CGO_ENABLED=1 GOOS=linux go build -o main ./cmd/main.go
 
-FROM gcr.io/distroless/base-debian12
+# Runtime stage
+FROM alpine:latest
 
-COPY --from=base /app .
+WORKDIR /app
 
-COPY static /static
+# Install required dependencies for SQLite
+RUN apk add --no-cache sqlite-libs
 
-COPY template /template
+# Copy the binary from builder
+COPY --from=builder /app/main .
+COPY --from=builder /app/template ./template
+COPY --from=builder /app/static ./static
+COPY --from=builder /app/.env .
 
-CMD ["/app"]
+# Expose port 8080
+EXPOSE 8080
+
+# Run the application
+CMD ["./main"]
