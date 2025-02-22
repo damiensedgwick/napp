@@ -52,7 +52,7 @@ func main() {
 					if ok {
 						fmt.Println("Successfully created " + projectname + ", next steps:")
 						fmt.Println("cd " + projectname)
-						fmt.Println("go mod init <path/your-project")
+						fmt.Println("go mod init <your-project-name>")
 						fmt.Println("go mod tidy")
 						fmt.Println("go run cmd/main.go")
 					}
