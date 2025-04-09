@@ -42,13 +42,19 @@ func main() {
 	}
 
 	e := echo.New()
+
 	e.Renderer = newTemplate()
+
 	e.Static("/static", "static")
+
 	e.Use(middleware.Recover())
+
 	e.Use(middleware.Secure())
+
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "method=${method}, uri=${uri}, status=${status}\n",
 	}))
+
 	store := sessions.NewCookieStore([]byte(os.Getenv("%s")))
 	e.Use(session.Middleware(store))
 
@@ -56,33 +62,33 @@ func main() {
 	if err != nil {
 		panic("failed to connect database")
 	}
-	db.AutoMigrate(&Lead{}, &User{})
+	db.AutoMigrate(&User{})
 
-	e.GET("/", homepageHandler())
-	e.POST("/join-waitlist", joinWaitlistHandler(db))
+	// Pages
+	e.GET("/", homePageHandler())
+	e.GET("/dashboard", dashboardPageHandler())
+
+	// Blocks
 	e.GET("/auth/sign-in", signIn())
 	e.POST("/auth/sign-in", signInWithEmailAndPassword(db))
 	e.GET("/auth/sign-up", signUp())
 	e.POST("/auth/sign-up", signUpWithEmailAndPassword(db))
 	e.POST("/auth/sign-out", signOut())
-	e.GET("/dashboard", dashboardHandler())
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
-type PageData struct {
-	User     User
-	LeadForm FormData
+type HomePageData struct {
+	User User
 }
 
-func newPageData(user User, leadForm FormData) PageData {
-	return PageData{
-		User:     user,
-		LeadForm: leadForm,
+func newPageData(user User) HomePageData {
+	return HomePageData{
+		User: user,
 	}
 }
 
-func homepageHandler() echo.HandlerFunc {
+func homePageHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		sess, _ := session.Get("session", c)
 		if sess.Values["user"] != nil {
@@ -93,18 +99,39 @@ func homepageHandler() echo.HandlerFunc {
 				return err
 			}
 
-			return c.Render(200, "index", newPageData(user, newFormData()))
+			return c.Render(200, "index", newPageData(user))
 		}
 
 		return c.Render(200, "index", nil)
 	}
 }
 
-type Lead struct {
-	gorm.Model
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt *time.Time
+type DashboardPageData struct {
+	User User
+}
+
+func newDashboardData(user User) DashboardPageData {
+	return DashboardPageData{
+		User: user,
+	}
+}
+
+func dashboardPageHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		sess, _ := session.Get("session", c)
+		if sess.Values["user"] != nil {
+			var user User
+			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
+			if err != nil {
+				fmt.Println("error unmarshalling user value")
+				return err
+			}
+
+			return c.Render(200, "dashboard", newDashboardData(user))
+		}
+
+		return c.Redirect(http.StatusFound, "/")
+	}
 }
 
 type FormData struct {
@@ -117,56 +144,6 @@ func newFormData() FormData {
 		Errors: map[string]string{},
 		Values: map[string]string{},
 	}
-}
-
-func joinWaitlistHandler(db *gorm.DB) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		email := c.FormValue("email")
-		_, err := mail.ParseAddress(email)
-		if err != nil {
-			return c.Render(422, "waitlist", FormData{
-				Errors: map[string]string{
-					"email": "Oops! That email address appears to be invalid",
-				},
-				Values: map[string]string{
-					"email": email,
-				},
-			})
-		}
-
-		if leadExists(email, db) {
-			return c.Render(422, "waitlist", FormData{
-				Errors: map[string]string{
-					"email": "Oops! It appears you are already subscribed",
-				},
-				Values: map[string]string{
-					"email": email,
-				},
-			})
-		}
-
-		lead := Lead{
-			Email: email,
-		}
-
-		if err := db.Create(&lead).Error; err != nil {
-			return c.Render(500, "waitlist", FormData{
-				Errors: map[string]string{
-					"email": "Oops! It appears we have had an error",
-				},
-				Values: map[string]string{},
-			})
-		}
-
-		return c.Render(200, "waitlist-joined", nil)
-	}
-}
-
-func leadExists(email string, db *gorm.DB) bool {
-	var lead Lead
-	err := db.First(&lead, "email = ?", email).Error
-
-	return err != gorm.ErrRecordNotFound
 }
 
 func userExists(email string, db *gorm.DB) bool {
@@ -299,7 +276,7 @@ func signInWithEmailAndPassword(db *gorm.DB) echo.HandlerFunc {
 
 		var user User
 		db.First(&user, "email = ?", email)
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		if compareErr := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); compareErr != nil {
 			return c.Render(422, "sign-in-form", FormData{
 				Errors: map[string]string{
 					"email": "Oops! Email address or password is incorrect.",
@@ -346,33 +323,5 @@ func signOut() echo.HandlerFunc {
 		}
 
 		return c.Render(200, "index", nil)
-	}
-}
-
-type DashboardData struct {
-	User User
-}
-
-func newDashboardData(user User) DashboardData {
-	return DashboardData{
-		User: user,
-	}
-}
-
-func dashboardHandler() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		sess, _ := session.Get("session", c)
-		if sess.Values["user"] != nil {
-			var user User
-			err := json.Unmarshal(sess.Values["user"].([]byte), &user)
-			if err != nil {
-				fmt.Println("error unmarshalling user value")
-				return err
-			}
-
-			return c.Render(200, "dashboard", newDashboardData(user))
-		}
-
-		return c.Redirect(http.StatusFound, "/")
 	}
 }

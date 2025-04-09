@@ -12,38 +12,35 @@
 </head>
 
 <body id="body">
-  <nav>
-    <div>
-      <div>
-        <a href="/" title="Heating Oil Tracker Home">
-          %s
-        </a>
-        <ul>
-          {{ if not .User }}
-          <li>
-            <button hx-get="/auth/sign-in" hx-target="body">Sign In</button>
-          </li>
-          {{ end }}
+  <header>
+    <nav>
+      <a href="/" title="Napp Home">
+        %s
+      </a>
 
-          {{ if .User }}
-          <li>
-            <a href="/dashboard" title="Dashboard">Dashboard</a>
-          </li>
-          <li>
-            <button hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
-          </li>
-          {{ end }}
-        </ul>
-      </div>
-    </div>
-  </nav>
+      <ul>
+        {{ if .User }}
+        <li>
+          <a href="/dashboard" title="Dashboard">Dashboard</a>
+        </li>
+        <li>
+          <button hx-post="/auth/sign-out" hx-target="body">Sign Out</button>
+        </li>
+        {{ end }}
+
+        {{ if not .User }}
+        <li>
+          <button hx-get="/auth/sign-in" hx-target="body">Sign In</button>
+        </li>
+        {{ end }}
+      </ul>
+    </nav>
+  </header>
+
   <main>
-    <div>
+    <section>
       <h1>%s</h1>
-      <p>Join our waiting list and you'll be the first to know when we launch, ensuring you don't
-        miss out on any exciting updates or early access opportunities.</p>
-      {{ template "waitlist" .LeadForm }}
-    </div>
+    </section>
   </main>
 
   <script type="text/javascript">
@@ -67,35 +64,12 @@
 </html>
 {{ end }}
 
-{{ block "waitlist" . }}
-<form id="waitlist-form" hx-post="/join-waitlist" hx-swap="outerHTML">
-  <div>
-    <label for="email">
-      <input type="text" name="email" placeholder="Please enter your email" {{ if .Values.email}}
-        value="{{ .Values.email }}" {{end}} required>
-    </label>
-
-    <button type="submit">Join Waitlist</button>
-  </div>
-
-  {{ if .Errors.email }}
-  <p>
-    {{ .Errors.email }}
-  </p>
-  {{ end }}
-</form>
-{{ end }}
-
-{{ block "waitlist-joined" . }}
-<p>Thanks! You successfully joined our waitlist</p>
-{{ end }}
-
 {{ block "sign-up-form" . }}
-<div>
-  <form id="sign-up-form" hx-post="/auth/sign-up" hx-target="body">
-    <p>
+<div id="sign-up-form">
+  <form hx-post="/auth/sign-up" hx-target="body">
+    <a href="/" title="Napp Home">
       %s
-    </p>
+    </a>
 
     <div>
       <label for="name">
@@ -133,11 +107,12 @@
 {{ end }}
 
 {{ block "sign-in-form" . }}
-<div>
-  <form id="sign-in-form" hx-post="/auth/sign-in" hx-target="body">
-    <p>
+<div id="sign-in-form">
+  <form hx-post="/auth/sign-in" hx-target="body">
+    <a href="/" title="Napp Home">
       %s
-    </p>
+    </a>
+
     <div>
       <label for="email">
         Email
