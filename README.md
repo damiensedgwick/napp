@@ -39,7 +39,7 @@ Below are some potential use cases for a Nano App.
 
 ## Prerequisites
 
-- Go 1.22 or higher (It may work on older versions of Go, I developed it using this version).
+- Go 1.23 or higher (It may work on older versions of Go, I developed it using this version).
 - Make sure your Go bin is added to your path so that installed packages can be used globally.
 
 ## Installation

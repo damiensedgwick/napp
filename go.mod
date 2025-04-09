@@ -1,7 +1,8 @@
 module github.com/damiensedgwick/napp
 
-go 1.22.0
-toolchain go1.23.7
+go 1.23.0
+
+toolchain go1.24.2
 
 require (
 	github.com/gorilla/sessions v1.2.2
